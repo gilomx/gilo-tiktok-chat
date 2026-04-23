@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+dist
+**/dist
+.env
+credentials.json
+server/uploads/*
+!server/uploads/.gitkeep
+server/public
+*.log
