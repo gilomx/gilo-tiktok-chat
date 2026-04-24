@@ -141,9 +141,18 @@ function SenderMeta({ sender }) {
   );
 }
 
-function SearchList({ title, items, renderItem, search, setSearch, children, footer = null }) {
+function SearchList({
+  title,
+  items,
+  renderItem,
+  search,
+  setSearch,
+  children,
+  footer = null,
+  panelProps = {}
+}) {
   return (
-    <section className="panel">
+    <section className="panel" {...panelProps}>
       <div className="panel-header">
         <h2>{title}</h2>
         <input
@@ -350,12 +359,14 @@ export default function DashboardPage() {
   const [overlayFixedBubbleWidth, setOverlayFixedBubbleWidth] = useState(false);
   const [overlayAlignment, setOverlayAlignment] = useState("right");
   const [overlayUrlCopied, setOverlayUrlCopied] = useState(false);
+  const [isLiveUsersLocked, setIsLiveUsersLocked] = useState(false);
   const [forbiddenPage, setForbiddenPage] = useState(1);
   const [replacementPage, setReplacementPage] = useState(1);
   const [stickerPage, setStickerPage] = useState(1);
   const [stickerPreviewUrl, setStickerPreviewUrl] = useState("");
   const liveUsersSearchRef = useRef("");
   const mutedUsersSearchRef = useRef("");
+  const pendingLiveUsersRef = useRef(null);
 
   const refreshSummary = async () => {
     const data = await http("/api/dashboard/summary");
@@ -481,9 +492,11 @@ export default function DashboardPage() {
       setSummary((current) => ({ ...current, liveStats }));
     };
     const handleLiveUsers = (liveUsers) => {
-      if (liveUsersSearchRef.current.trim()) {
+      if (liveUsersSearchRef.current.trim() || isLiveUsersLocked) {
+        pendingLiveUsersRef.current = liveUsers;
         return;
       }
+      pendingLiveUsersRef.current = null;
       setSummary((current) => ({ ...current, liveUsers }));
     };
     const handleMutedUsers = (mutedUsers) => {
@@ -513,7 +526,21 @@ export default function DashboardPage() {
       socket.off("live:muted-users-updated", handleMutedUsers);
       socket.off("reader:config-updated", handleReaderConfig);
     };
-  }, [socket]);
+  }, [socket, isLiveUsersLocked]);
+
+  useEffect(() => {
+    if (isLiveUsersLocked || liveUsersSearchRef.current.trim()) {
+      return;
+    }
+
+    if (pendingLiveUsersRef.current) {
+      setSummary((current) => ({
+        ...current,
+        liveUsers: pendingLiveUsersRef.current
+      }));
+      pendingLiveUsersRef.current = null;
+    }
+  }, [isLiveUsersLocked, search.liveUsers]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -839,6 +866,20 @@ export default function DashboardPage() {
 
     refreshLiveUsers();
     refreshMutedUsers();
+  };
+
+  const lockLiveUsersPanel = () => {
+    setIsLiveUsersLocked(true);
+  };
+
+  const unlockLiveUsersPanel = () => {
+    setIsLiveUsersLocked(false);
+  };
+
+  const handleLiveUsersPanelBlur = (event) => {
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      unlockLiveUsersPanel();
+    }
   };
 
   const updateQueueSnapshot = (queue) => {
@@ -1219,6 +1260,12 @@ export default function DashboardPage() {
             setSearch={(value) =>
               setSearch((current) => ({ ...current, liveUsers: value }))
             }
+            panelProps={{
+              onMouseEnter: lockLiveUsersPanel,
+              onMouseLeave: unlockLiveUsersPanel,
+              onFocusCapture: lockLiveUsersPanel,
+              onBlurCapture: handleLiveUsersPanelBlur
+            }}
             renderItem={(user) => (
               <article key={user.uniqueId} className="chip-item chip-item-user">
                 <span className="chip-label chip-user-label">
