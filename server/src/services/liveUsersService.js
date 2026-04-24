@@ -1,7 +1,7 @@
-import { MutedUser } from "../models/MutedUser.js";
 import { emitAppEvent } from "./socketHub.js";
 import { removeQueuedMessagesBySender } from "./queueService.js";
 import { normalizeText } from "../utils/text.js";
+import { getMutedUserByUniqueId, listMutedUsers, setMutedUserState, upsertMutedUser } from "./sqliteStore.js";
 
 const MAX_USERS = 200;
 let liveUsers = [];
@@ -28,7 +28,7 @@ function rankUsers(users, query) {
 
 async function attachMuteState(users) {
   const uniqueIds = users.map((user) => user.uniqueId).filter(Boolean);
-  const mutedUsers = await MutedUser.find({ uniqueId: { $in: uniqueIds }, muted: true }).lean();
+  const mutedUsers = listMutedUsers().filter((item) => uniqueIds.includes(item.uniqueId));
   const mutedSet = new Set(mutedUsers.map((item) => item.uniqueId));
   return users.map((user) => ({
     ...user,
@@ -67,7 +67,7 @@ export async function searchLiveUsers(query, limit = 15) {
 }
 
 export async function searchMutedUsers(query, limit = 15) {
-  const mutedUsers = await MutedUser.find({ muted: true }).sort({ updatedAt: -1 }).lean();
+  const mutedUsers = listMutedUsers();
   const ranked = rankUsers(
     mutedUsers.map((user) => ({
       userId: user.userId || "",
@@ -88,19 +88,15 @@ export async function muteLiveUser(sender) {
     throw new Error("uniqueId es obligatorio para silenciar");
   }
 
-  await MutedUser.findOneAndUpdate(
-    { uniqueId },
-    {
-      userId: sender?.userId || "",
-      uniqueId,
-      normalizedUniqueId: normalizeText(uniqueId),
-      nickname: sender?.nickname || uniqueId,
-      normalizedNickname: normalizeText(sender?.nickname || uniqueId),
-      profilePictureUrl: sender?.profilePictureUrl || "",
-      muted: true
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
+  upsertMutedUser({
+    userId: sender?.userId || "",
+    uniqueId,
+    normalizedUniqueId: normalizeText(uniqueId),
+    nickname: sender?.nickname || uniqueId,
+    normalizedNickname: normalizeText(sender?.nickname || uniqueId),
+    profilePictureUrl: sender?.profilePictureUrl || "",
+    muted: true
+  });
 
   await removeQueuedMessagesBySender(uniqueId);
 
@@ -109,11 +105,7 @@ export async function muteLiveUser(sender) {
 }
 
 export async function unmuteLiveUser(uniqueId) {
-  await MutedUser.findOneAndUpdate(
-    { uniqueId },
-    { muted: false },
-    { new: true }
-  );
+  setMutedUserState(uniqueId, false);
 
   emitAppEvent("live:users-updated", await getRecentLiveUsers());
   emitAppEvent("live:muted-users-updated", await searchMutedUsers(""));
@@ -123,6 +115,6 @@ export async function isUserMuted(uniqueId) {
   if (!uniqueId) {
     return false;
   }
-  const mutedUser = await MutedUser.findOne({ uniqueId, muted: true }).lean();
+  const mutedUser = getMutedUserByUniqueId(uniqueId);
   return Boolean(mutedUser);
 }

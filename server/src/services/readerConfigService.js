@@ -1,9 +1,9 @@
 import textToSpeech from "@google-cloud/text-to-speech";
 import fs from "fs";
-import { env } from "../config/env.js";
-import { ReaderConfig } from "../models/ReaderConfig.js";
 import { reanalyzeQueuedMessages } from "./queueService.js";
 import { emitAppEvent } from "./socketHub.js";
+import { getReaderConfigRow, upsertReaderConfigRow } from "./sqliteStore.js";
+import { getGoogleCredentialsPath, hasGoogleCredentials } from "./googleCredentialsService.js";
 
 const DEFAULT_READER_CONFIG = {
   enabled: true,
@@ -13,6 +13,7 @@ const DEFAULT_READER_CONFIG = {
   pitch: 0,
   volumeGainDb: 0,
   modsOnly: false,
+  includeUserName: true,
   noSpam: true,
   blockWeirdChars: true,
   reduceEmojiSpam: true
@@ -59,6 +60,7 @@ const FALLBACK_READER_VOICE_OPTIONS = [
 }));
 
 let ttsClient = null;
+let ttsClientKeyPath = "";
 let cachedVoiceOptions = null;
 let voiceCatalogLoadedAt = 0;
 const VOICE_CACHE_MS = 1000 * 60 * 60 * 12;
@@ -85,17 +87,26 @@ function normalizeBoolean(value, fallback) {
 }
 
 function getGoogleTtsClient() {
-  if (!env.googleCredentialsPath || !fs.existsSync(env.googleCredentialsPath)) {
+  const credentialsPath = getGoogleCredentialsPath();
+  if (!credentialsPath || !fs.existsSync(credentialsPath)) {
     return null;
   }
 
-  if (!ttsClient) {
+  if (!ttsClient || ttsClientKeyPath !== credentialsPath) {
     ttsClient = new textToSpeech.TextToSpeechClient({
-      keyFilename: env.googleCredentialsPath
+      keyFilename: credentialsPath
     });
+    ttsClientKeyPath = credentialsPath;
   }
 
   return ttsClient;
+}
+
+export function invalidateGoogleTtsResources() {
+  cachedVoiceOptions = null;
+  voiceCatalogLoadedAt = 0;
+  ttsClient = null;
+  ttsClientKeyPath = "";
 }
 
 function inferVoiceTier(voiceName = "") {
@@ -214,6 +225,7 @@ async function buildReaderConfigPayload(config) {
 
   return {
     enabled: normalizeBoolean(config?.enabled, DEFAULT_READER_CONFIG.enabled),
+    googleCredentialsConfigured: hasGoogleCredentials(),
     languageCode,
     voiceName,
     speakingRate: normalizeNumber(
@@ -230,6 +242,10 @@ async function buildReaderConfigPayload(config) {
       16
     ),
     modsOnly: normalizeBoolean(config?.modsOnly, DEFAULT_READER_CONFIG.modsOnly),
+    includeUserName: normalizeBoolean(
+      config?.includeUserName,
+      DEFAULT_READER_CONFIG.includeUserName
+    ),
     noSpam: normalizeBoolean(config?.noSpam, DEFAULT_READER_CONFIG.noSpam),
     blockWeirdChars: normalizeBoolean(
       config?.blockWeirdChars,
@@ -247,14 +263,12 @@ export async function getReaderVoiceOptions() {
 }
 
 export async function getReaderConfig() {
-  let config = await ReaderConfig.findOne({ key: "main" }).lean();
+  let config = getReaderConfigRow("main");
   if (!config) {
-    config = (
-      await ReaderConfig.create({
-        key: "main",
-        ...DEFAULT_READER_CONFIG
-      })
-    ).toObject();
+    config = upsertReaderConfigRow({
+      key: "main",
+      ...DEFAULT_READER_CONFIG
+    });
   }
 
   return buildReaderConfigPayload(config);
@@ -262,11 +276,7 @@ export async function getReaderConfig() {
 
 export async function updateReaderConfig(input) {
   const payload = await buildReaderConfigPayload(input);
-  const config = await ReaderConfig.findOneAndUpdate(
-    { key: "main" },
-    { key: "main", ...payload },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  ).lean();
+  const config = upsertReaderConfigRow({ key: "main", ...payload });
 
   const normalized = await buildReaderConfigPayload(config);
   await reanalyzeQueuedMessages(normalized);

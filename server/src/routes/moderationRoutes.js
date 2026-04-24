@@ -1,8 +1,12 @@
 import express from "express";
-import { ForbiddenWord } from "../models/ForbiddenWord.js";
-import { ReplacementRule } from "../models/ReplacementRule.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { normalizeText } from "../utils/text.js";
+import {
+  createForbiddenWord,
+  createReplacementRule,
+  deleteForbiddenWord,
+  deleteReplacementRule
+} from "../services/sqliteStore.js";
 
 const router = express.Router();
 
@@ -12,7 +16,7 @@ router.post("/forbidden-words", asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "La palabra prohibida es obligatoria" });
   }
 
-  const item = await ForbiddenWord.create({
+  const item = createForbiddenWord({
     value,
     normalizedValue: normalizeText(value),
     notes: req.body.notes || ""
@@ -21,7 +25,7 @@ router.post("/forbidden-words", asyncHandler(async (req, res) => {
 }));
 
 router.delete("/forbidden-words/:id", asyncHandler(async (req, res) => {
-  await ForbiddenWord.findByIdAndDelete(req.params.id);
+  deleteForbiddenWord(req.params.id);
   res.status(204).send();
 }));
 
@@ -32,7 +36,7 @@ router.post("/replacement-rules", asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "Los campos 'buscar' y 'reemplazo' son obligatorios" });
   }
 
-  const item = await ReplacementRule.create({
+  const item = createReplacementRule({
     from,
     normalizedFrom: normalizeText(from),
     to
@@ -41,7 +45,7 @@ router.post("/replacement-rules", asyncHandler(async (req, res) => {
 }));
 
 router.delete("/replacement-rules/:id", asyncHandler(async (req, res) => {
-  await ReplacementRule.findByIdAndDelete(req.params.id);
+  deleteReplacementRule(req.params.id);
   res.status(204).send();
 }));
 

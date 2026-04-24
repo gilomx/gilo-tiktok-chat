@@ -8,6 +8,7 @@ export default function OverlayPage() {
   const [messages, setMessages] = useState([]);
   const [overlayConfig, setOverlayConfig] = useState({
     bubbleOpacity: 0.98,
+    perspectiveEnabled: false,
     theme: {
       bubbleTopColor: "#af72ff",
       bubbleBottomColor: "#7139e5",
@@ -20,7 +21,11 @@ export default function OverlayPage() {
       nameFontSizeRem: 0.9,
       handleFontSizeRem: 0.74,
       messageFontSizeRem: 0.84,
-      stickerSizePx: 63
+      stickerSizePx: 63,
+      perspectiveDepth: 900,
+      perspectiveRotateX: 0,
+      perspectiveRotateY: 0,
+      perspectiveEyeLevel: 50
     }
   });
   const stackRef = useRef(null);
@@ -70,7 +75,13 @@ export default function OverlayPage() {
     <main className="overlay-shell">
       <section
         ref={stackRef}
-        className={`overlay-stack overlay-stack-${overlayConfig.alignment || "right"} ${overlayConfig.softTopFade ? "overlay-stack-soft-fade" : ""}`}
+        className={`overlay-stack overlay-stack-${overlayConfig.alignment || "right"} ${overlayConfig.softTopFade ? "overlay-stack-soft-fade" : ""} ${overlayConfig.perspectiveEnabled ? "overlay-perspective-enabled" : ""}`}
+        style={{
+          "--overlay-perspective-depth": `${overlayConfig.theme?.perspectiveDepth || 900}px`,
+          "--overlay-perspective-rotate-x": `${overlayConfig.theme?.perspectiveRotateX || 0}deg`,
+          "--overlay-perspective-rotate-y": `${overlayConfig.theme?.perspectiveRotateY || 0}deg`,
+          "--overlay-perspective-eye-level": `${overlayConfig.theme?.perspectiveEyeLevel || 50}%`
+        }}
       >
         {messages.map((message) => (
           <article

@@ -3,6 +3,7 @@ import { http } from "../api/http";
 import { useSocket } from "../hooks/useSocket";
 import QueuePlayer from "../components/QueuePlayer";
 import StickerMessage from "../components/StickerMessage";
+import previewStickerUrl from "../assets/loco.gif";
 
 function OverlayPreview({ overlayConfig }) {
   const previewMessage = {
@@ -17,7 +18,7 @@ function OverlayPreview({ overlayConfig }) {
       {
         type: "sticker",
         stickerId: "preview-sticker",
-        stickerUrl: "https://placehold.co/96x96/f59e0b/ffffff/webp?text=%E2%98%85",
+        stickerUrl: previewStickerUrl,
         label: "Sticker"
       },
       { type: "text", value: " para tu overlay" }
@@ -25,7 +26,15 @@ function OverlayPreview({ overlayConfig }) {
   };
 
   return (
-    <div className="overlay-preview-shell">
+    <div
+      className={`overlay-preview-shell ${overlayConfig?.perspectiveEnabled ? "overlay-perspective-enabled" : ""}`}
+      style={{
+        "--overlay-perspective-depth": `${overlayConfig?.theme?.perspectiveDepth || 900}px`,
+        "--overlay-perspective-rotate-x": `${overlayConfig?.theme?.perspectiveRotateX || 0}deg`,
+        "--overlay-perspective-rotate-y": `${overlayConfig?.theme?.perspectiveRotateY || 0}deg`,
+        "--overlay-perspective-eye-level": `${overlayConfig?.theme?.perspectiveEyeLevel || 50}%`
+      }}
+    >
       <article
         className={`overlay-bubble overlay-bubble-preview overlay-bubble-${overlayConfig?.alignment || "right"}`}
         style={{
@@ -41,7 +50,11 @@ function OverlayPreview({ overlayConfig }) {
           "--bubble-name-size": `${overlayConfig?.theme?.nameFontSizeRem || 0.9}rem`,
           "--bubble-handle-size": `${overlayConfig?.theme?.handleFontSizeRem || 0.74}rem`,
           "--bubble-message-size": `${overlayConfig?.theme?.messageFontSizeRem || 0.84}rem`,
-          "--overlay-sticker-size": `${overlayConfig?.theme?.stickerSizePx || 63}px`
+          "--overlay-sticker-size": `${overlayConfig?.theme?.stickerSizePx || 63}px`,
+          "--overlay-perspective-depth": `${overlayConfig?.theme?.perspectiveDepth || 900}px`,
+          "--overlay-perspective-rotate-x": `${overlayConfig?.theme?.perspectiveRotateX || 0}deg`,
+          "--overlay-perspective-rotate-y": `${overlayConfig?.theme?.perspectiveRotateY || 0}deg`,
+          "--overlay-perspective-eye-level": `${overlayConfig?.theme?.perspectiveEyeLevel || 50}%`
         }}
       >
         <img
@@ -213,6 +226,7 @@ function scaleToPercent(value, baseline) {
 
 export default function DashboardPage() {
   const socket = useSocket();
+  const googleCredentialsInputRef = useRef(null);
   const colorInputRef = useRef(null);
   const modBadgeColorInputRef = useRef(null);
   const nameTextColorInputRef = useRef(null);
@@ -247,12 +261,14 @@ export default function DashboardPage() {
     },
     readerConfig: {
       enabled: true,
+      googleCredentialsConfigured: false,
       languageCode: "es-US",
       voiceName: "es-US-Standard-A",
       speakingRate: 1,
       pitch: 0,
       volumeGainDb: 0,
       modsOnly: false,
+      includeUserName: true,
       noSpam: true,
       blockWeirdChars: true,
       reduceEmojiSpam: true
@@ -268,6 +284,11 @@ export default function DashboardPage() {
       handleTextColor: "#ffffff",
       messageTextColor: "#ffffff",
       bubbleOpacity: 0.98,
+      perspectiveEnabled: false,
+      perspectiveDepth: 900,
+      perspectiveRotateX: 0,
+      perspectiveRotateY: 0,
+      perspectiveEyeLevel: 50,
       softTopFade: true,
       fixedBubbleWidth: false,
       alignment: "right",
@@ -286,7 +307,12 @@ export default function DashboardPage() {
         nameFontSizeRem: 0.9,
         handleFontSizeRem: 0.74,
         messageFontSizeRem: 0.84,
-        stickerSizePx: 63
+        stickerSizePx: 63,
+        perspectiveEnabled: false,
+        perspectiveDepth: 900,
+        perspectiveRotateX: 0,
+        perspectiveRotateY: 0,
+        perspectiveEyeLevel: 50
       }
     }
   });
@@ -315,6 +341,11 @@ export default function DashboardPage() {
   const [overlayMessageFontSizeRem, setOverlayMessageFontSizeRem] = useState(0.84);
   const [overlayStickerSizePx, setOverlayStickerSizePx] = useState(63);
   const [overlayOpacity, setOverlayOpacity] = useState(0.98);
+  const [overlayPerspectiveEnabled, setOverlayPerspectiveEnabled] = useState(false);
+  const [overlayPerspectiveDepth, setOverlayPerspectiveDepth] = useState(900);
+  const [overlayPerspectiveRotateX, setOverlayPerspectiveRotateX] = useState(0);
+  const [overlayPerspectiveRotateY, setOverlayPerspectiveRotateY] = useState(0);
+  const [overlayPerspectiveEyeLevel, setOverlayPerspectiveEyeLevel] = useState(50);
   const [overlaySoftTopFade, setOverlaySoftTopFade] = useState(true);
   const [overlayFixedBubbleWidth, setOverlayFixedBubbleWidth] = useState(false);
   const [overlayAlignment, setOverlayAlignment] = useState("right");
@@ -339,6 +370,11 @@ export default function DashboardPage() {
     setOverlayMessageFontSizeRem(data.overlayConfig?.messageFontSizeRem ?? 0.84);
     setOverlayStickerSizePx(data.overlayConfig?.stickerSizePx ?? 63);
     setOverlayOpacity(data.overlayConfig?.bubbleOpacity ?? 0.98);
+    setOverlayPerspectiveEnabled(data.overlayConfig?.perspectiveEnabled ?? false);
+    setOverlayPerspectiveDepth(data.overlayConfig?.perspectiveDepth ?? 900);
+    setOverlayPerspectiveRotateX(data.overlayConfig?.perspectiveRotateX ?? 0);
+    setOverlayPerspectiveRotateY(data.overlayConfig?.perspectiveRotateY ?? 0);
+    setOverlayPerspectiveEyeLevel(data.overlayConfig?.perspectiveEyeLevel ?? 50);
     setOverlaySoftTopFade(data.overlayConfig?.softTopFade ?? true);
     setOverlayFixedBubbleWidth(data.overlayConfig?.fixedBubbleWidth ?? false);
     setOverlayAlignment(data.overlayConfig?.alignment || "right");
@@ -432,6 +468,11 @@ export default function DashboardPage() {
       setOverlayMessageFontSizeRem(config.messageFontSizeRem ?? 0.84);
       setOverlayStickerSizePx(config.stickerSizePx ?? 63);
       setOverlayOpacity(config.bubbleOpacity ?? 0.98);
+      setOverlayPerspectiveEnabled(config.perspectiveEnabled ?? false);
+      setOverlayPerspectiveDepth(config.perspectiveDepth ?? 900);
+      setOverlayPerspectiveRotateX(config.perspectiveRotateX ?? 0);
+      setOverlayPerspectiveRotateY(config.perspectiveRotateY ?? 0);
+      setOverlayPerspectiveEyeLevel(config.perspectiveEyeLevel ?? 50);
       setOverlaySoftTopFade(config.softTopFade ?? true);
       setOverlayFixedBubbleWidth(config.fixedBubbleWidth ?? false);
       setOverlayAlignment(config.alignment || "right");
@@ -629,6 +670,11 @@ export default function DashboardPage() {
     setOverlayMessageFontSizeRem(config.messageFontSizeRem ?? 0.84);
     setOverlayStickerSizePx(config.stickerSizePx ?? 63);
     setOverlayOpacity(config.bubbleOpacity ?? 0.98);
+    setOverlayPerspectiveEnabled(config.perspectiveEnabled ?? false);
+    setOverlayPerspectiveDepth(config.perspectiveDepth ?? 900);
+    setOverlayPerspectiveRotateX(config.perspectiveRotateX ?? 0);
+    setOverlayPerspectiveRotateY(config.perspectiveRotateY ?? 0);
+    setOverlayPerspectiveEyeLevel(config.perspectiveEyeLevel ?? 50);
     setOverlaySoftTopFade(config.softTopFade ?? true);
     setOverlayFixedBubbleWidth(config.fixedBubbleWidth ?? false);
     setOverlayAlignment(config.alignment || "right");
@@ -645,6 +691,11 @@ export default function DashboardPage() {
     messageFontSizeRem: overlayMessageFontSizeRem,
     stickerSizePx: overlayStickerSizePx,
     bubbleOpacity: overlayOpacity,
+    perspectiveEnabled: overlayPerspectiveEnabled,
+    perspectiveDepth: overlayPerspectiveDepth,
+    perspectiveRotateX: overlayPerspectiveRotateX,
+    perspectiveRotateY: overlayPerspectiveRotateY,
+    perspectiveEyeLevel: overlayPerspectiveEyeLevel,
     softTopFade: overlaySoftTopFade,
     fixedBubbleWidth: overlayFixedBubbleWidth,
     alignment: overlayAlignment,
@@ -696,6 +747,31 @@ export default function DashboardPage() {
     await saveOverlayConfig(buildNextOverlayConfig({ stickerSizePx: nextSize }));
   };
 
+  const updateOverlayPerspectiveEnabled = async (nextValue) => {
+    setOverlayPerspectiveEnabled(nextValue);
+    await saveOverlayConfig(buildNextOverlayConfig({ perspectiveEnabled: nextValue }));
+  };
+
+  const updateOverlayPerspectiveDepth = async (nextValue) => {
+    setOverlayPerspectiveDepth(nextValue);
+    await saveOverlayConfig(buildNextOverlayConfig({ perspectiveDepth: nextValue }));
+  };
+
+  const updateOverlayPerspectiveRotateX = async (nextValue) => {
+    setOverlayPerspectiveRotateX(nextValue);
+    await saveOverlayConfig(buildNextOverlayConfig({ perspectiveRotateX: nextValue }));
+  };
+
+  const updateOverlayPerspectiveRotateY = async (nextValue) => {
+    setOverlayPerspectiveRotateY(nextValue);
+    await saveOverlayConfig(buildNextOverlayConfig({ perspectiveRotateY: nextValue }));
+  };
+
+  const updateOverlayPerspectiveEyeLevel = async (nextValue) => {
+    setOverlayPerspectiveEyeLevel(nextValue);
+    await saveOverlayConfig(buildNextOverlayConfig({ perspectiveEyeLevel: nextValue }));
+  };
+
   const updateOverlayOpacity = async (nextOpacity) => {
     setOverlayOpacity(nextOpacity);
     await saveOverlayConfig(buildNextOverlayConfig({ bubbleOpacity: nextOpacity }));
@@ -728,6 +804,11 @@ export default function DashboardPage() {
       messageFontSizeRem: 0.84,
       stickerSizePx: 63,
       bubbleOpacity: 0.98,
+      perspectiveEnabled: false,
+      perspectiveDepth: 900,
+      perspectiveRotateX: 0,
+      perspectiveRotateY: 0,
+      perspectiveEyeLevel: 50,
       softTopFade: true,
       fixedBubbleWidth: false,
       alignment: "right"
@@ -808,6 +889,30 @@ export default function DashboardPage() {
       body: JSON.stringify(nextConfig)
     });
     setSummary((current) => ({ ...current, readerConfig: config }));
+  };
+
+  const handleGoogleCredentialsUpload = async (file) => {
+    if (!file) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await http("/api/dashboard/google-credentials", {
+      method: "POST",
+      body: formData
+    });
+
+    setSummary((current) => ({
+      ...current,
+      readerConfig: response.config,
+      readerVoiceOptions: response.voiceOptions
+    }));
+
+    if (googleCredentialsInputRef.current) {
+      googleCredentialsInputRef.current.value = "";
+    }
   };
 
   const updateReaderConfigField = async (field, value) => {
@@ -987,6 +1092,20 @@ export default function DashboardPage() {
                   <span title="El lector leera solo mensajes de los mods.">Solo mods</span>
                 </label>
 
+                <label className="reader-mini-check reader-mini-check-break">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(summary.readerConfig.includeUserName)}
+                    onChange={(e) =>
+                      updateReaderConfigField("includeUserName", e.target.checked)
+                    }
+                    title="Si esta activado, el lector dira: usuario dijo: mensaje."
+                  />
+                  <span title="Si esta activado, el lector dira: usuario dijo: mensaje.">
+                    Leer nombre del usuario
+                  </span>
+                </label>
+
                 <label className="reader-mini-check">
                   <input
                     type="checkbox"
@@ -1026,6 +1145,33 @@ export default function DashboardPage() {
                     Leer menos emojis
                   </span>
                 </label>
+              </div>
+
+              <div className="reader-toolbar-row reader-toolbar-row-credentials">
+                <div className="reader-credentials-copy">
+                  <strong>
+                    {summary.readerConfig.googleCredentialsConfigured
+                      ? "Credencial de Google cargada"
+                      : "Google TTS sin credencial"}
+                  </strong>
+                  <span>
+                    Sube el JSON de Service Account que descargaste desde Google Cloud.
+                  </span>
+                </div>
+                <input
+                  ref={googleCredentialsInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  className="reader-credentials-input"
+                  onChange={(e) => handleGoogleCredentialsUpload(e.target.files?.[0] || null)}
+                />
+                <button
+                  type="button"
+                  className="button-secondary button-compact"
+                  onClick={() => googleCredentialsInputRef.current?.click()}
+                >
+                  {summary.readerConfig.googleCredentialsConfigured ? "Cambiar JSON" : "Subir JSON de Google"}
+                </button>
               </div>
             </div>
 
@@ -1485,15 +1631,15 @@ export default function DashboardPage() {
               <label className="color-setting">
                 <span>Transparencia</span>
                 <div className="opacity-row">
-                  <input
-                    className="opacity-slider"
-                    type="range"
-                    min="0.2"
-                    max="1"
-                    step="0.01"
-                    value={overlayOpacity}
-                    onChange={(e) => updateOverlayOpacity(Number(e.target.value))}
-                  />
+                    <input
+                      className="opacity-slider"
+                      type="range"
+                      min="0.2"
+                      max="1"
+                      step="0.01"
+                      value={overlayOpacity}
+                      onChange={(e) => updateOverlayOpacity(Number(e.target.value))}
+                    />
                   <code>{Math.round(overlayOpacity * 100)}%</code>
                 </div>
               </label>
@@ -1505,7 +1651,7 @@ export default function DashboardPage() {
                       className="opacity-slider"
                       type="range"
                       min="0.76"
-                      max="1.2"
+                      max="1.8"
                       step="0.02"
                       value={overlayNameFontSizeRem}
                       onChange={(e) => updateOverlayNameFontSizeRem(Number(e.target.value))}
@@ -1520,7 +1666,7 @@ export default function DashboardPage() {
                       className="opacity-slider"
                       type="range"
                       min="0.72"
-                      max="1.12"
+                      max="1.26"
                       step="0.02"
                       value={overlayMessageFontSizeRem}
                       onChange={(e) => updateOverlayMessageFontSizeRem(Number(e.target.value))}
@@ -1535,7 +1681,7 @@ export default function DashboardPage() {
                       className="opacity-slider"
                       type="range"
                       min="0.62"
-                      max="1"
+                      max="1.48"
                       step="0.02"
                       value={overlayHandleFontSizeRem}
                       onChange={(e) => updateOverlayHandleFontSizeRem(Number(e.target.value))}
@@ -1549,9 +1695,9 @@ export default function DashboardPage() {
                     <input
                       className="opacity-slider"
                       type="range"
-                      min="48"
+                      min="31.5"
                       max="96"
-                      step="2"
+                      step="0.5"
                       value={overlayStickerSizePx}
                       onChange={(e) => updateOverlayStickerSizePx(Number(e.target.value))}
                     />
@@ -1578,6 +1724,78 @@ export default function DashboardPage() {
                   </button>
                   </div>
                 </label>
+              <label className="reader-mini-check overlay-toggle-check">
+                <input
+                  type="checkbox"
+                  checked={overlayPerspectiveEnabled}
+                  onChange={(e) => updateOverlayPerspectiveEnabled(e.target.checked)}
+                />
+                <span>Usar perspectiva</span>
+              </label>
+              <div className={`overlay-perspective-panel ${overlayPerspectiveEnabled ? "overlay-perspective-panel-open" : ""}`}>
+                <div className="overlay-font-grid">
+                <label className="color-setting color-setting-compact">
+                  <span>Depth</span>
+                  <div className="opacity-row">
+                    <input
+                      className="opacity-slider"
+                      type="range"
+                      min="400"
+                      max="1600"
+                      step="25"
+                      value={overlayPerspectiveDepth}
+                      onChange={(e) => updateOverlayPerspectiveDepth(Number(e.target.value))}
+                    />
+                    <code>{Math.round(overlayPerspectiveDepth)}px</code>
+                  </div>
+                </label>
+                <label className="color-setting color-setting-compact">
+                  <span>Vertical</span>
+                  <div className="opacity-row">
+                    <input
+                      className="opacity-slider"
+                      type="range"
+                      min="-12"
+                      max="12"
+                      step="1"
+                      value={overlayPerspectiveRotateX}
+                      onChange={(e) => updateOverlayPerspectiveRotateX(Number(e.target.value))}
+                    />
+                    <code>{overlayPerspectiveRotateX}deg</code>
+                  </div>
+                </label>
+                <label className="color-setting color-setting-compact">
+                  <span>Horizontal</span>
+                  <div className="opacity-row">
+                    <input
+                      className="opacity-slider"
+                      type="range"
+                      min="-12"
+                      max="12"
+                      step="1"
+                      value={overlayPerspectiveRotateY}
+                      onChange={(e) => updateOverlayPerspectiveRotateY(Number(e.target.value))}
+                    />
+                    <code>{overlayPerspectiveRotateY}deg</code>
+                  </div>
+                </label>
+                <label className="color-setting color-setting-compact">
+                  <span>Eye level</span>
+                  <div className="opacity-row">
+                    <input
+                      className="opacity-slider"
+                      type="range"
+                      min="1"
+                      max="100"
+                      step="1"
+                      value={overlayPerspectiveEyeLevel}
+                      onChange={(e) => updateOverlayPerspectiveEyeLevel(Number(e.target.value))}
+                    />
+                    <code>{Math.round(overlayPerspectiveEyeLevel)}%</code>
+                  </div>
+                </label>
+                </div>
+              </div>
               <label className="reader-mini-check overlay-toggle-check">
                 <input
                   type="checkbox"

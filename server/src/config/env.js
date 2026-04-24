@@ -23,9 +23,9 @@ export const env = {
   serverDir,
   clientDistDir: path.resolve(rootDir, "client", "dist"),
   uploadsDir: path.resolve(rootDir, "server", "uploads"),
+  sqlitePath: path.resolve(rootDir, process.env.SQLITE_PATH || "server/data/app.db"),
   port: Number(process.env.PORT || 3001),
   clientUrl: process.env.CLIENT_URL || "http://localhost:5173",
-  mongoUri: process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/gilo_tiktok_chat",
   tiktokWsUrl: process.env.TIKTOK_WS_URL || "ws://localhost:21213/",
   uploadDir: process.env.UPLOAD_DIR || "server/uploads",
   googleCredentialsPath: (() => {

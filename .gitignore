@@ -6,5 +6,8 @@ dist
 credentials.json
 server/uploads/*
 !server/uploads/.gitkeep
+server/data/*
+!server/data/.gitkeep
+server/data/google-service-account.json
 server/public
 *.log

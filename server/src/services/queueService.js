@@ -1,5 +1,6 @@
-import { QueueState } from "../models/QueueState.js";
 import { buildTtsMessageFromSegments } from "./moderationService.js";
+import { getQueueStateRow, upsertQueueStateRow } from "./sqliteStore.js";
+import { compactSpaces } from "../utils/text.js";
 import {
   findFirstMessage,
   getMessageById,
@@ -10,11 +11,40 @@ import {
 import { emitAppEvent } from "./socketHub.js";
 
 const STALE_SPEAKING_MS = 30 * 1000;
+const USERNAME_EMOJI_REGEX = /\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*/gu;
+
+function sanitizeSpeakerName(value) {
+  return compactSpaces(String(value || "").replace(USERNAME_EMOJI_REGEX, " ")).trim();
+}
+
+function buildReadableTtsMessage(message, readerConfig = {}) {
+  const baseMessage = buildTtsMessageFromSegments(
+    message.renderedSegments || [],
+    { reduceEmojiSpam: readerConfig.reduceEmojiSpam }
+  ).trim();
+
+  if (!baseMessage) {
+    return "";
+  }
+
+  if (!readerConfig.includeUserName) {
+    return baseMessage;
+  }
+
+  const speakerName = String(
+    message.sender?.nickname ||
+    message.sender?.uniqueId ||
+    ""
+  );
+  const cleanSpeakerName = sanitizeSpeakerName(speakerName);
+
+  return cleanSpeakerName ? `${cleanSpeakerName} dice: ${baseMessage}` : baseMessage;
+}
 
 async function ensureQueueState() {
-  let state = await QueueState.findOne({ key: "main" });
+  let state = getQueueStateRow("main");
   if (!state) {
-    state = await QueueState.create({ key: "main", paused: false });
+    state = upsertQueueStateRow({ key: "main", paused: false });
   }
   return state;
 }
@@ -45,9 +75,8 @@ export async function getQueueSnapshot() {
 }
 
 export async function setQueuePaused(paused) {
-  const state = await ensureQueueState();
-  state.paused = paused;
-  await state.save();
+  await ensureQueueState();
+  upsertQueueStateRow({ key: "main", paused });
 
   if (paused) {
     updateMessages((message) => message.queueStatus === "speaking", { queueStatus: "queued" });
@@ -138,10 +167,7 @@ export async function reanalyzeQueuedMessages(readerConfig = {}) {
   const seenMessages = new Set();
 
   for (const message of queuedMessages) {
-    const nextTtsMessage = buildTtsMessageFromSegments(
-      message.renderedSegments || [],
-      { reduceEmojiSpam: readerConfig.reduceEmojiSpam }
-    );
+    const nextTtsMessage = buildReadableTtsMessage(message, readerConfig);
 
     if (!nextTtsMessage.trim()) {
       messagesToRemove.push(message._id);

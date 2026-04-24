@@ -1,7 +1,5 @@
-import { ForbiddenWord } from "../models/ForbiddenWord.js";
-import { ReplacementRule } from "../models/ReplacementRule.js";
-import { Sticker } from "../models/Sticker.js";
 import { compactSpaces, escapeRegex, maskWord, normalizeText } from "../utils/text.js";
+import { listForbiddenWords, listReplacementRules, listStickers } from "./sqliteStore.js";
 
 const FOREIGN_SCRIPT_REGEX = /[\p{Script=Cyrillic}\p{Script=Arabic}\p{Script=Han}\p{Script=Hangul}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hebrew}\p{Script=Thai}\p{Script=Greek}]+/gu;
 const EMOJI_CLUSTER_REGEX = /\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*/gu;
@@ -218,9 +216,9 @@ export function buildTtsMessageFromSegments(segments, options = {}) {
 
 export async function moderateIncomingMessage(originalMessage, emotes = [], options = {}) {
   const [forbiddenWords, replacementRules, stickers] = await Promise.all([
-    ForbiddenWord.find().sort({ createdAt: -1 }).lean(),
-    ReplacementRule.find().sort({ createdAt: -1 }).lean(),
-    Sticker.find().sort({ createdAt: -1 }).lean()
+    Promise.resolve(listForbiddenWords()),
+    Promise.resolve(listReplacementRules()),
+    Promise.resolve(listStickers())
   ]);
 
   const replacementResult = applyReplacements(originalMessage, replacementRules);

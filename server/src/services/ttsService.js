@@ -1,19 +1,22 @@
 import textToSpeech from "@google-cloud/text-to-speech";
 import fs from "fs";
-import { env } from "../config/env.js";
 import { getReaderConfig } from "./readerConfigService.js";
+import { getGoogleCredentialsPath } from "./googleCredentialsService.js";
 
 let client = null;
+let clientKeyPath = "";
 
 function getClient() {
-  if (!env.googleCredentialsPath || !fs.existsSync(env.googleCredentialsPath)) {
+  const credentialsPath = getGoogleCredentialsPath();
+  if (!credentialsPath || !fs.existsSync(credentialsPath)) {
     return null;
   }
 
-  if (!client) {
+  if (!client || clientKeyPath !== credentialsPath) {
     client = new textToSpeech.TextToSpeechClient({
-      keyFilename: env.googleCredentialsPath
+      keyFilename: credentialsPath
     });
+    clientKeyPath = credentialsPath;
   }
 
   return client;

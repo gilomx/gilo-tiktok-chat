@@ -1,5 +1,6 @@
 import WebSocket from "ws";
 import { env } from "../config/env.js";
+import { compactSpaces } from "../utils/text.js";
 import { emitAppEvent } from "./socketHub.js";
 import { updateLiveStats } from "./liveStatsService.js";
 import { createMessage, findDuplicateQueuedMessage } from "./messageStoreService.js";
@@ -9,6 +10,25 @@ import { getQueueSnapshot } from "./queueService.js";
 import { getReaderConfig } from "./readerConfigService.js";
 
 let socket = null;
+const USERNAME_EMOJI_REGEX = /\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*/gu;
+
+function sanitizeSpeakerName(value) {
+  return compactSpaces(String(value || "").replace(USERNAME_EMOJI_REGEX, " ")).trim();
+}
+
+function buildReadableTtsMessage(sender, ttsMessage, readerConfig) {
+  const baseMessage = String(ttsMessage || "").trim();
+  if (!baseMessage) {
+    return "";
+  }
+
+  if (!readerConfig.includeUserName) {
+    return baseMessage;
+  }
+
+  const speakerName = sanitizeSpeakerName(sender?.nickname || sender?.uniqueId || "");
+  return speakerName ? `${speakerName} dice: ${baseMessage}` : baseMessage;
+}
 
 function firstDefined(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== "");
@@ -101,11 +121,12 @@ async function handleChatMessage(rawEvent) {
     reduceEmojiSpam: readerConfig.reduceEmojiSpam
   });
   const sender = pickUser(payload);
+  const readableTtsMessage = buildReadableTtsMessage(sender, moderation.ttsMessage, readerConfig);
   await rememberLiveUser(sender);
   const muted = await isUserMuted(sender.uniqueId);
 
   let queueStatus = muted ? "muted" : "queued";
-  const hasReadableTtsContent = Boolean(moderation.ttsMessage?.trim());
+  const hasReadableTtsContent = Boolean(readableTtsMessage);
 
   if (!muted && !hasReadableTtsContent) {
     queueStatus = "skipped";
@@ -128,7 +149,7 @@ async function handleChatMessage(rawEvent) {
     sender,
     originalMessage: comment,
     filteredMessage: moderation.filteredMessage,
-    ttsMessage: moderation.ttsMessage,
+    ttsMessage: readableTtsMessage,
     renderedSegments: moderation.renderedSegments,
     flags: moderation.flags,
     rawEvent,

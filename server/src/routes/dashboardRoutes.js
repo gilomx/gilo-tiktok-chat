@@ -1,17 +1,18 @@
 import express from "express";
-import { ForbiddenWord } from "../models/ForbiddenWord.js";
-import { ReplacementRule } from "../models/ReplacementRule.js";
-import { Sticker } from "../models/Sticker.js";
+import multer from "multer";
 import { getOverlayConfig, updateOverlayConfig } from "../services/overlayConfigService.js";
 import { getLiveStats } from "../services/liveStatsService.js";
 import { getRecentMessages } from "../services/messageStoreService.js";
 import { getRecentLiveUsers, muteLiveUser, searchLiveUsers, searchMutedUsers, unmuteLiveUser } from "../services/liveUsersService.js";
 import { getQueueSnapshot } from "../services/queueService.js";
-import { getReaderConfig, getReaderVoiceOptions, updateReaderConfig } from "../services/readerConfigService.js";
+import { getReaderConfig, getReaderVoiceOptions, invalidateGoogleTtsResources, updateReaderConfig } from "../services/readerConfigService.js";
+import { listForbiddenWords, listReplacementRules, listStickers } from "../services/sqliteStore.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { normalizeText } from "../utils/text.js";
+import { saveGoogleCredentialsFile } from "../services/googleCredentialsService.js";
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 function rankMatch(items, field, query) {
   const normalizedQuery = normalizeText(query);
@@ -65,9 +66,9 @@ router.get("/summary", asyncHandler(async (_req, res) => {
   const [queue, recentMessages, forbiddenWords, replacementRules, stickerItems, overlayConfig, liveUsers, mutedUsers, readerConfig, readerVoiceOptions] = await Promise.all([
     getQueueSnapshot(),
     Promise.resolve(getRecentMessages(10)),
-    ForbiddenWord.find().sort({ createdAt: -1 }).lean(),
-    ReplacementRule.find().sort({ createdAt: -1 }).lean(),
-    Sticker.find().sort({ createdAt: -1 }).lean(),
+    Promise.resolve(listForbiddenWords()),
+    Promise.resolve(listReplacementRules()),
+    Promise.resolve(listStickers()),
     getOverlayConfig(),
     getRecentLiveUsers(),
     searchMutedUsers(""),
@@ -91,7 +92,7 @@ router.get("/summary", asyncHandler(async (_req, res) => {
 }));
 
 router.get("/forbidden-words", asyncHandler(async (req, res) => {
-  const items = await ForbiddenWord.find().sort({ createdAt: -1 }).lean();
+  const items = listForbiddenWords();
   res.json(
     rankMatchWithPagination(
       items,
@@ -104,7 +105,7 @@ router.get("/forbidden-words", asyncHandler(async (req, res) => {
 }));
 
 router.get("/replacement-rules", asyncHandler(async (req, res) => {
-  const items = await ReplacementRule.find().sort({ createdAt: -1 }).lean();
+  const items = listReplacementRules();
   res.json(
     rankMatchWithPagination(
       items,
@@ -117,7 +118,7 @@ router.get("/replacement-rules", asyncHandler(async (req, res) => {
 }));
 
 router.get("/stickers", asyncHandler(async (req, res) => {
-  const items = await Sticker.find().sort({ createdAt: -1 }).lean();
+  const items = listStickers();
   res.json(
     rankMatchWithPagination(
       items,
@@ -150,6 +151,20 @@ router.get("/reader-config", asyncHandler(async (_req, res) => {
 
 router.put("/reader-config", asyncHandler(async (req, res) => {
   res.json(await updateReaderConfig(req.body));
+}));
+
+router.post("/google-credentials", upload.single("file"), asyncHandler(async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "Debes subir el archivo JSON de Google." });
+  }
+
+  saveGoogleCredentialsFile(req.file.buffer);
+  invalidateGoogleTtsResources();
+
+  res.status(201).json({
+    config: await getReaderConfig(),
+    voiceOptions: await getReaderVoiceOptions()
+  });
 }));
 
 router.get("/live-users", asyncHandler(async (req, res) => {

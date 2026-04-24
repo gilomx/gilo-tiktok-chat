@@ -2,8 +2,8 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import multer from "multer";
-import { Sticker } from "../models/Sticker.js";
 import { env } from "../config/env.js";
+import { createSticker, deleteSticker, getStickerById } from "../services/sqliteStore.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { normalizeText } from "../utils/text.js";
 
@@ -44,7 +44,7 @@ router.post("/", upload.single("file"), asyncHandler(async (req, res) => {
 
   const relativeUrl = `/uploads/stickers/${req.file.filename}`;
 
-  const sticker = await Sticker.create({
+  const sticker = createSticker({
     keyword,
     normalizedKeyword: normalizeText(keyword),
     label,
@@ -58,7 +58,10 @@ router.post("/", upload.single("file"), asyncHandler(async (req, res) => {
 }));
 
 router.delete("/:id", asyncHandler(async (req, res) => {
-  const sticker = await Sticker.findByIdAndDelete(req.params.id);
+  const sticker = getStickerById(req.params.id);
+  if (sticker) {
+    deleteSticker(req.params.id);
+  }
   if (sticker) {
     const target = path.resolve(stickerDir, sticker.fileName);
     fs.rmSync(target, { force: true });
