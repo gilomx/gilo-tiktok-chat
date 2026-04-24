@@ -1,5 +1,6 @@
 import { MutedUser } from "../models/MutedUser.js";
 import { emitAppEvent } from "./socketHub.js";
+import { removeQueuedMessagesBySender } from "./queueService.js";
 import { normalizeText } from "../utils/text.js";
 
 const MAX_USERS = 200;
@@ -100,6 +101,8 @@ export async function muteLiveUser(sender) {
     },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
+
+  await removeQueuedMessagesBySender(uniqueId);
 
   emitAppEvent("live:users-updated", await getRecentLiveUsers());
   emitAppEvent("live:muted-users-updated", await searchMutedUsers(""));

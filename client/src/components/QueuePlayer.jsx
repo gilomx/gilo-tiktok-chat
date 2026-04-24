@@ -1,13 +1,39 @@
 import { useEffect, useRef } from "react";
 import { http } from "../api/http";
 
-export default function QueuePlayer({ enabled, onRefresh }) {
+function applyRealtimeVolume(audio, gainNode, volumePercent) {
+  const normalizedPercent = Math.max(0, Number(volumePercent) || 0);
+  const normalizedGain = Math.min(2, normalizedPercent / 100);
+
+  if (gainNode) {
+    gainNode.gain.value = normalizedGain;
+    return;
+  }
+
+  audio.volume = Math.min(1, normalizedGain);
+}
+
+export default function QueuePlayer({ enabled, onRefresh, volumePercent = 100 }) {
   const onRefreshRef = useRef(onRefresh);
   const enabledRef = useRef(enabled);
   const timeoutRef = useRef(null);
   const audioRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const gainNodeRef = useRef(null);
+  const sourceNodeRef = useRef(null);
   const runningRef = useRef(false);
   const generationRef = useRef(0);
+
+  const cleanupAudioNodes = () => {
+    if (sourceNodeRef.current) {
+      sourceNodeRef.current.disconnect();
+      sourceNodeRef.current = null;
+    }
+    if (gainNodeRef.current) {
+      gainNodeRef.current.disconnect();
+      gainNodeRef.current = null;
+    }
+  };
 
   const clearPendingTimeout = () => {
     if (timeoutRef.current) {
@@ -21,6 +47,14 @@ export default function QueuePlayer({ enabled, onRefresh }) {
   }, [onRefresh]);
 
   useEffect(() => {
+    if (!audioRef.current) {
+      return;
+    }
+
+    applyRealtimeVolume(audioRef.current, gainNodeRef.current, volumePercent);
+  }, [volumePercent]);
+
+  useEffect(() => {
     enabledRef.current = enabled;
     generationRef.current += 1;
     const currentGeneration = generationRef.current;
@@ -32,6 +66,7 @@ export default function QueuePlayer({ enabled, onRefresh }) {
         audioRef.current.pause();
         audioRef.current = null;
       }
+      cleanupAudioNodes();
       runningRef.current = false;
       return undefined;
     }
@@ -56,6 +91,22 @@ export default function QueuePlayer({ enabled, onRefresh }) {
         const audio = new Audio(`/api/tts/message/${next._id}`);
         audioRef.current = audio;
 
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          if (!audioContextRef.current) {
+            audioContextRef.current = new AudioContextClass();
+          }
+
+          cleanupAudioNodes();
+          sourceNodeRef.current = audioContextRef.current.createMediaElementSource(audio);
+          gainNodeRef.current = audioContextRef.current.createGain();
+          sourceNodeRef.current.connect(gainNodeRef.current);
+          gainNodeRef.current.connect(audioContextRef.current.destination);
+          applyRealtimeVolume(audio, gainNodeRef.current, volumePercent);
+        } else {
+          applyRealtimeVolume(audio, null, volumePercent);
+        }
+
         await new Promise((resolve, reject) => {
           audio.onended = resolve;
           audio.onerror = reject;
@@ -78,6 +129,7 @@ export default function QueuePlayer({ enabled, onRefresh }) {
         }
       } finally {
         audioRef.current = null;
+        cleanupAudioNodes();
         runningRef.current = false;
 
         if (enabledRef.current && generationRef.current === currentGeneration) {
@@ -95,6 +147,7 @@ export default function QueuePlayer({ enabled, onRefresh }) {
         audioRef.current.pause();
         audioRef.current = null;
       }
+      cleanupAudioNodes();
       runningRef.current = false;
     };
   }, [enabled]);

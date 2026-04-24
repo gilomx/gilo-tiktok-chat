@@ -8,7 +8,11 @@ const readerConfigSchema = new mongoose.Schema(
     voiceName: { type: String, required: true, default: "es-US-Standard-A" },
     speakingRate: { type: Number, required: true, default: 1, min: 0.25, max: 2 },
     pitch: { type: Number, required: true, default: 0, min: -20, max: 20 },
-    volumeGainDb: { type: Number, required: true, default: 0, min: -96, max: 16 }
+    volumeGainDb: { type: Number, required: true, default: 0, min: -96, max: 16 },
+    modsOnly: { type: Boolean, required: true, default: false },
+    noSpam: { type: Boolean, required: true, default: true },
+    blockWeirdChars: { type: Boolean, required: true, default: true },
+    reduceEmojiSpam: { type: Boolean, required: true, default: true }
   },
   { timestamps: true }
 );

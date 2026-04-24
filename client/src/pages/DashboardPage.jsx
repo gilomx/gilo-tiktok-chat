@@ -9,7 +9,8 @@ function OverlayPreview({ overlayConfig }) {
     sender: {
       nickname: "gilo",
       uniqueId: "gilo.mx",
-      profilePictureUrl: "https://placehold.co/96x96/6d28d9/ffffff/png?text=G"
+      profilePictureUrl: "https://placehold.co/96x96/6d28d9/ffffff/png?text=G",
+      isModerator: true
     },
     renderedSegments: [
       { type: "text", value: "Este es un mensaje de preview para tu overlay" }
@@ -19,11 +20,14 @@ function OverlayPreview({ overlayConfig }) {
   return (
     <div className="overlay-preview-shell">
       <article
-        className="overlay-bubble overlay-bubble-preview"
+        className={`overlay-bubble overlay-bubble-preview overlay-bubble-${overlayConfig?.alignment || "right"}`}
         style={{
           "--overlay-bubble-top": overlayConfig?.theme?.bubbleTopRgba,
           "--overlay-bubble-bottom": overlayConfig?.theme?.bubbleBottomRgba,
-          "--overlay-bubble-shadow": overlayConfig?.theme?.bubbleShadowColor
+          "--overlay-bubble-shadow": overlayConfig?.theme?.bubbleShadowColor,
+          "--mod-badge-bg": overlayConfig?.theme?.modBadgeBackground,
+          "--mod-badge-border": overlayConfig?.theme?.modBadgeBorder,
+          "--mod-badge-text": overlayConfig?.theme?.modBadgeText
         }}
       >
         <img
@@ -33,7 +37,10 @@ function OverlayPreview({ overlayConfig }) {
         />
         <div className="bubble-content">
           <div className="bubble-header">
-            <h3>{previewMessage.sender.nickname}</h3>
+            <div className="bubble-title-row">
+              <h3>{previewMessage.sender.nickname}</h3>
+              <span className="mod-badge">MOD</span>
+            </div>
             <p>@{previewMessage.sender.uniqueId}</p>
           </div>
           <div className="bubble-message">
@@ -45,9 +52,16 @@ function OverlayPreview({ overlayConfig }) {
   );
 }
 
-function ChatBubbleCard({ message, statusLabel, showOriginal = false }) {
+function ChatBubbleCard({ message, statusLabel, showOriginal = false, overlayConfig = null }) {
   return (
-    <article className="dashboard-chat-bubble">
+    <article
+      className="dashboard-chat-bubble"
+      style={{
+        "--mod-badge-bg": overlayConfig?.theme?.modBadgeBackground,
+        "--mod-badge-border": overlayConfig?.theme?.modBadgeBorder,
+        "--mod-badge-text": overlayConfig?.theme?.modBadgeText
+      }}
+    >
       <img
         className="avatar"
         src={message.sender?.profilePictureUrl || "https://placehold.co/64x64/png"}
@@ -55,7 +69,12 @@ function ChatBubbleCard({ message, statusLabel, showOriginal = false }) {
       />
       <div className="bubble-content">
         <div className="bubble-header">
-          <h3>{message.sender?.nickname || "Invitado"}</h3>
+          <div className="bubble-title-row">
+            <h3>{message.sender?.nickname || "Invitado"}</h3>
+            {message.sender?.isModerator && (
+              <span className="mod-badge">MOD</span>
+            )}
+          </div>
           <p>@{message.sender?.uniqueId || "chat"}</p>
         </div>
         {statusLabel && <span className="reading-badge">{statusLabel}</span>}
@@ -95,7 +114,7 @@ function SenderMeta({ sender }) {
   );
 }
 
-function SearchList({ title, items, renderItem, search, setSearch, children }) {
+function SearchList({ title, items, renderItem, search, setSearch, children, footer = null }) {
   return (
     <section className="panel">
       <div className="panel-header">
@@ -109,7 +128,42 @@ function SearchList({ title, items, renderItem, search, setSearch, children }) {
       </div>
       {children}
       <div className="list">{items.map(renderItem)}</div>
+      {footer}
     </section>
+  );
+}
+
+function Pagination({ page, totalPages, onChange }) {
+  if (totalPages <= 1) {
+    return null;
+  }
+
+  return (
+    <div className="pagination-row">
+      <button
+        type="button"
+        className="pagination-button pagination-icon-button"
+        onClick={() => onChange(page - 1)}
+        disabled={page <= 1}
+        aria-label="Pagina anterior"
+        title="Pagina anterior"
+      >
+        {"\u2039"}
+      </button>
+      <span className="pagination-status">
+        {page}
+      </span>
+      <button
+        type="button"
+        className="pagination-button pagination-icon-button"
+        onClick={() => onChange(page + 1)}
+        disabled={page >= totalPages}
+        aria-label="Pagina siguiente"
+        title="Pagina siguiente"
+      >
+        {"\u203A"}
+      </button>
+    </div>
   );
 }
 
@@ -126,22 +180,61 @@ function formatLanguageLabel(languageCode) {
   }
 }
 
+function dbToPercent(volumeGainDb) {
+  const percent = Math.round(100 * 10 ** (Number(volumeGainDb || 0) / 20));
+  return Math.min(200, Math.max(0, percent));
+}
+
+function percentToDb(percent) {
+  const normalizedPercent = Math.min(200, Math.max(0, Number(percent) || 0));
+  if (normalizedPercent <= 0) {
+    return -96;
+  }
+  return Math.max(-96, Math.min(16, 20 * Math.log10(normalizedPercent / 100)));
+}
+
 export default function DashboardPage() {
   const socket = useSocket();
   const colorInputRef = useRef(null);
+  const modBadgeColorInputRef = useRef(null);
   const [summary, setSummary] = useState({
     queue: { paused: false, current: null, items: [] },
     recentMessages: [],
-    forbidden: [],
-    replacements: [],
-    stickers: [],
+    forbidden: {
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
+      query: ""
+    },
+    replacements: {
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
+      query: ""
+    },
+    stickers: {
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
+      query: ""
+    },
     readerConfig: {
       enabled: true,
       languageCode: "es-US",
       voiceName: "es-US-Standard-A",
       speakingRate: 1,
       pitch: 0,
-      volumeGainDb: 0
+      volumeGainDb: 0,
+      modsOnly: false,
+      noSpam: true,
+      blockWeirdChars: true,
+      reduceEmojiSpam: true
     },
     readerVoiceOptions: [],
     liveStats: { viewerCount: 0, updatedAt: null },
@@ -149,13 +242,18 @@ export default function DashboardPage() {
     mutedUsers: [],
     overlayConfig: {
       bubbleBaseColor: "#9a5cff",
+      modBadgeColor: "#ff6e8a",
       bubbleOpacity: 0.98,
+      alignment: "right",
       theme: {
         bubbleTopColor: "#af72ff",
         bubbleBottomColor: "#7139e5",
         bubbleShadowColor: "#320f63",
         bubbleTopRgba: "rgba(175, 114, 255, 0.98)",
-        bubbleBottomRgba: "rgba(113, 57, 229, 0.98)"
+        bubbleBottomRgba: "rgba(113, 57, 229, 0.98)",
+        modBadgeBackground: "rgba(255, 110, 138, 0.18)",
+        modBadgeBorder: "rgba(255, 145, 165, 0.32)",
+        modBadgeText: "#ffb4c2"
       }
     }
   });
@@ -175,14 +273,23 @@ export default function DashboardPage() {
   });
   const [isStickerDragActive, setIsStickerDragActive] = useState(false);
   const [overlayColor, setOverlayColor] = useState("#9a5cff");
+  const [overlayModBadgeColor, setOverlayModBadgeColor] = useState("#ff6e8a");
   const [overlayOpacity, setOverlayOpacity] = useState(0.98);
+  const [overlayAlignment, setOverlayAlignment] = useState("right");
+  const [forbiddenPage, setForbiddenPage] = useState(1);
+  const [replacementPage, setReplacementPage] = useState(1);
+  const [stickerPage, setStickerPage] = useState(1);
   const [stickerPreviewUrl, setStickerPreviewUrl] = useState("");
+  const liveUsersSearchRef = useRef("");
+  const mutedUsersSearchRef = useRef("");
 
   const refreshSummary = async () => {
     const data = await http("/api/dashboard/summary");
     setSummary(data);
     setOverlayColor(data.overlayConfig?.bubbleBaseColor || "#9a5cff");
+    setOverlayModBadgeColor(data.overlayConfig?.modBadgeColor || "#ff6e8a");
     setOverlayOpacity(data.overlayConfig?.bubbleOpacity ?? 0.98);
+    setOverlayAlignment(data.overlayConfig?.alignment || "right");
   };
 
   const refreshSearch = async (key, endpoint) => {
@@ -190,6 +297,30 @@ export default function DashboardPage() {
       `/api/dashboard/${endpoint}?q=${encodeURIComponent(search[key])}`,
     );
     setSummary((current) => ({ ...current, [key]: data }));
+  };
+
+  const refreshForbiddenWords = async (page = forbiddenPage, query = search.forbidden) => {
+    const data = await http(
+      `/api/dashboard/forbidden-words?q=${encodeURIComponent(query)}&page=${page}&pageSize=20`
+    );
+    setSummary((current) => ({ ...current, forbidden: data }));
+    setForbiddenPage(data.page);
+  };
+
+  const refreshReplacementRules = async (page = replacementPage, query = search.replacements) => {
+    const data = await http(
+      `/api/dashboard/replacement-rules?q=${encodeURIComponent(query)}&page=${page}&pageSize=20`
+    );
+    setSummary((current) => ({ ...current, replacements: data }));
+    setReplacementPage(data.page);
+  };
+
+  const refreshStickers = async (page = stickerPage, query = search.stickers) => {
+    const data = await http(
+      `/api/dashboard/stickers?q=${encodeURIComponent(query)}&page=${page}&pageSize=20`
+    );
+    setSummary((current) => ({ ...current, stickers: data }));
+    setStickerPage(data.page);
   };
 
   const refreshLiveUsers = async () => {
@@ -209,6 +340,14 @@ export default function DashboardPage() {
   useEffect(() => {
     refreshSummary();
   }, []);
+
+  useEffect(() => {
+    liveUsersSearchRef.current = search.liveUsers;
+  }, [search.liveUsers]);
+
+  useEffect(() => {
+    mutedUsersSearchRef.current = search.mutedUsers;
+  }, [search.mutedUsers]);
 
   useEffect(() => {
     if (!socket) return undefined;
@@ -232,15 +371,23 @@ export default function DashboardPage() {
     const handleOverlayConfig = (config) => {
       setSummary((current) => ({ ...current, overlayConfig: config }));
       setOverlayColor(config.bubbleBaseColor);
+      setOverlayModBadgeColor(config.modBadgeColor || "#ff6e8a");
       setOverlayOpacity(config.bubbleOpacity ?? 0.98);
+      setOverlayAlignment(config.alignment || "right");
     };
     const handleLiveStats = (liveStats) => {
       setSummary((current) => ({ ...current, liveStats }));
     };
     const handleLiveUsers = (liveUsers) => {
+      if (liveUsersSearchRef.current.trim()) {
+        return;
+      }
       setSummary((current) => ({ ...current, liveUsers }));
     };
     const handleMutedUsers = (mutedUsers) => {
+      if (mutedUsersSearchRef.current.trim()) {
+        return;
+      }
       setSummary((current) => ({ ...current, mutedUsers }));
     };
     const handleReaderConfig = (readerConfig) => {
@@ -267,28 +414,56 @@ export default function DashboardPage() {
   }, [socket]);
 
   useEffect(() => {
-    refreshLiveUsers();
+    const timeoutId = window.setTimeout(() => {
+      refreshLiveUsers();
+    }, 220);
+
+    return () => window.clearTimeout(timeoutId);
   }, [search.liveUsers]);
 
   useEffect(() => {
-    refreshMutedUsers();
+    const timeoutId = window.setTimeout(() => {
+      refreshMutedUsers();
+    }, 220);
+
+    return () => window.clearTimeout(timeoutId);
   }, [search.mutedUsers]);
 
   useEffect(() => {
-    refreshSearch("forbidden", "forbidden-words");
+    setForbiddenPage(1);
   }, [search.forbidden]);
 
   useEffect(() => {
-    refreshSearch("replacements", "replacement-rules");
+    refreshForbiddenWords(forbiddenPage, search.forbidden);
+  }, [forbiddenPage, search.forbidden]);
+
+  useEffect(() => {
+    setReplacementPage(1);
   }, [search.replacements]);
 
   useEffect(() => {
-    refreshSearch("stickers", "stickers");
+    refreshReplacementRules(replacementPage, search.replacements);
+  }, [replacementPage, search.replacements]);
+
+  useEffect(() => {
+    setStickerPage(1);
   }, [search.stickers]);
+
+  useEffect(() => {
+    refreshStickers(stickerPage, search.stickers);
+  }, [stickerPage, search.stickers]);
 
   const queuedTotal = useMemo(
     () => summary.queue.items.length,
     [summary.queue.items.length],
+  );
+  const showSpanishCharacterFilter = useMemo(
+    () => String(summary.readerConfig.languageCode || "").toLowerCase().startsWith("es-"),
+    [summary.readerConfig.languageCode]
+  );
+  const volumePercent = useMemo(
+    () => dbToPercent(summary.readerConfig.volumeGainDb),
+    [summary.readerConfig.volumeGainDb]
   );
 
   const addForbiddenWord = async (e) => {
@@ -304,6 +479,7 @@ export default function DashboardPage() {
     });
     setForms((current) => ({ ...current, forbidden: "" }));
     refreshSummary();
+    refreshForbiddenWords(1, "");
   };
 
   const addReplacementRule = async (e) => {
@@ -326,6 +502,7 @@ export default function DashboardPage() {
       replacementTo: "",
     }));
     refreshSummary();
+    refreshReplacementRules(1, "");
   };
 
   const addSticker = async (e) => {
@@ -351,6 +528,7 @@ export default function DashboardPage() {
     setStickerPreviewUrl("");
     setIsStickerDragActive(false);
     refreshSummary();
+    refreshStickers(1, "");
   };
 
   const setStickerFile = (file) => {
@@ -381,14 +559,28 @@ export default function DashboardPage() {
     });
     setSummary((current) => ({ ...current, overlayConfig: config }));
     setOverlayColor(config.bubbleBaseColor);
+    setOverlayModBadgeColor(config.modBadgeColor || "#ff6e8a");
     setOverlayOpacity(config.bubbleOpacity ?? 0.98);
+    setOverlayAlignment(config.alignment || "right");
   };
 
   const updateOverlayColor = async (nextColor) => {
     setOverlayColor(nextColor);
     await saveOverlayConfig({
       bubbleBaseColor: nextColor,
-      bubbleOpacity: overlayOpacity
+      modBadgeColor: overlayModBadgeColor,
+      bubbleOpacity: overlayOpacity,
+      alignment: overlayAlignment
+    });
+  };
+
+  const updateOverlayModBadgeColor = async (nextColor) => {
+    setOverlayModBadgeColor(nextColor);
+    await saveOverlayConfig({
+      bubbleBaseColor: overlayColor,
+      modBadgeColor: nextColor,
+      bubbleOpacity: overlayOpacity,
+      alignment: overlayAlignment
     });
   };
 
@@ -396,7 +588,19 @@ export default function DashboardPage() {
     setOverlayOpacity(nextOpacity);
     await saveOverlayConfig({
       bubbleBaseColor: overlayColor,
-      bubbleOpacity: nextOpacity
+      modBadgeColor: overlayModBadgeColor,
+      bubbleOpacity: nextOpacity,
+      alignment: overlayAlignment
+    });
+  };
+
+  const updateOverlayAlignment = async (nextAlignment) => {
+    setOverlayAlignment(nextAlignment);
+    await saveOverlayConfig({
+      bubbleBaseColor: overlayColor,
+      modBadgeColor: overlayModBadgeColor,
+      bubbleOpacity: overlayOpacity,
+      alignment: nextAlignment
     });
   };
 
@@ -483,6 +687,7 @@ export default function DashboardPage() {
       <QueuePlayer
         enabled={!summary.queue.paused}
         onRefresh={refreshSummary}
+        volumePercent={volumePercent}
       />
 
       <section className="hero">
@@ -568,7 +773,7 @@ export default function DashboardPage() {
                         key={`${voice.languageCode}-${voice.voiceName}`}
                         value={voice.voiceName}
                       >
-                        {voice.voiceName} - {voice.tier}
+                        {voice.voiceName} - Free
                       </option>
                     ))}
                   </select>
@@ -615,16 +820,70 @@ export default function DashboardPage() {
                   <div className="reader-slider-inline">
                     <input
                       type="range"
-                      min="-6"
-                      max="10"
+                      min="0"
+                      max="200"
                       step="1"
-                      value={summary.readerConfig.volumeGainDb}
+                      value={volumePercent}
                       onChange={(e) =>
-                        updateReaderConfigField("volumeGainDb", Number(e.target.value))
+                        updateReaderConfigField("volumeGainDb", percentToDb(e.target.value))
                       }
                     />
-                    <code>{summary.readerConfig.volumeGainDb} dB</code>
+                    <code>{volumePercent}%</code>
                   </div>
+                </label>
+              </div>
+
+              <div className="reader-toolbar-row reader-toolbar-row-checks">
+                <label className="reader-mini-check">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(summary.readerConfig.modsOnly)}
+                    onChange={(e) =>
+                      updateReaderConfigField("modsOnly", e.target.checked)
+                    }
+                    title="El lector leera solo mensajes de los mods."
+                  />
+                  <span title="El lector leera solo mensajes de los mods.">Solo mods</span>
+                </label>
+
+                <label className="reader-mini-check">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(summary.readerConfig.noSpam)}
+                    onChange={(e) =>
+                      updateReaderConfigField("noSpam", e.target.checked)
+                    }
+                    title="Si hay un mensaje de un usuario en el reproductor, no podra enviar exactamente el mismo hasta que este haya sido leido."
+                  />
+                  <span title="Si hay un mensaje de un usuario en el reproductor, no podra enviar exactamente el mismo hasta que este haya sido leido.">No spam</span>
+                </label>
+
+                {showSpanishCharacterFilter && (
+                  <label className="reader-mini-check">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(summary.readerConfig.blockWeirdChars)}
+                      onChange={(e) =>
+                        updateReaderConfigField("blockWeirdChars", e.target.checked)
+                      }
+                      title="No permite la lectura de caracteres raros en otros idiomas, para evitar a los groseros y sus copys."
+                    />
+                    <span title="No permite la lectura de caracteres raros en otros idiomas, para evitar a los groseros y sus copys.">Bloquear caracteres raros</span>
+                  </label>
+                )}
+
+                <label className="reader-mini-check">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(summary.readerConfig.reduceEmojiSpam)}
+                    onChange={(e) =>
+                      updateReaderConfigField("reduceEmojiSpam", e.target.checked)
+                    }
+                    title="Reduce el spam de emojis: si repiten uno varias veces, lee uno; si mandan varios diferentes juntos, lee hasta tres."
+                  />
+                  <span title="Reduce el spam de emojis: si repiten uno varias veces, lee uno; si mandan varios diferentes juntos, lee hasta tres.">
+                    Leer menos emojis
+                  </span>
                 </label>
               </div>
             </div>
@@ -637,11 +896,15 @@ export default function DashboardPage() {
 
             <div className="queue-list">
               {summary.queue.current && (
-                <ChatBubbleCard message={summary.queue.current} statusLabel="Leyendo" />
+                <ChatBubbleCard
+                  message={summary.queue.current}
+                  statusLabel="Leyendo"
+                  overlayConfig={summary.overlayConfig}
+                />
               )}
               {summary.queue.items.map((item) => (
                 <div key={item._id} className="queue-item-wrap">
-                  <ChatBubbleCard message={item} />
+                  <ChatBubbleCard message={item} overlayConfig={summary.overlayConfig} />
                   <button
                     className="icon-button icon-button-danger"
                     aria-label="Eliminar mensaje de la cola"
@@ -736,10 +999,17 @@ export default function DashboardPage() {
 
           <SearchList
             title="Palabras prohibidas"
-            items={summary.forbidden}
+            items={summary.forbidden.items}
             search={search.forbidden}
             setSearch={(value) =>
               setSearch((current) => ({ ...current, forbidden: value }))
+            }
+            footer={
+              <Pagination
+                page={summary.forbidden.page}
+                totalPages={summary.forbidden.totalPages}
+                onChange={setForbiddenPage}
+              />
             }
             renderItem={(item) => (
               <article key={item._id} className="chip-item chip-item-forbidden">
@@ -751,7 +1021,10 @@ export default function DashboardPage() {
                   onClick={() =>
                     http(`/api/moderation/forbidden-words/${item._id}`, {
                       method: "DELETE",
-                    }).then(refreshSummary)
+                    }).then(() => {
+                      refreshSummary();
+                      refreshForbiddenWords(forbiddenPage, search.forbidden);
+                    })
                   }
                 >
                   {"\u00D7"}
@@ -776,10 +1049,17 @@ export default function DashboardPage() {
 
           <SearchList
             title="Frases reemplazables"
-            items={summary.replacements}
+            items={summary.replacements.items}
             search={search.replacements}
             setSearch={(value) =>
               setSearch((current) => ({ ...current, replacements: value }))
+            }
+            footer={
+              <Pagination
+                page={summary.replacements.page}
+                totalPages={summary.replacements.totalPages}
+                onChange={setReplacementPage}
+              />
             }
             renderItem={(item) => (
               <article key={item._id} className="chip-item chip-item-wide chip-item-replacement">
@@ -796,7 +1076,10 @@ export default function DashboardPage() {
                   onClick={() =>
                     http(`/api/moderation/replacement-rules/${item._id}`, {
                       method: "DELETE",
-                    }).then(refreshSummary)
+                    }).then(() => {
+                      refreshSummary();
+                      refreshReplacementRules(replacementPage, search.replacements);
+                    })
                   }
                 >
                   {"\u00D7"}
@@ -831,10 +1114,17 @@ export default function DashboardPage() {
 
           <SearchList
             title="Stickers"
-            items={summary.stickers}
+            items={summary.stickers.items}
             search={search.stickers}
             setSearch={(value) =>
               setSearch((current) => ({ ...current, stickers: value }))
+            }
+            footer={
+              <Pagination
+                page={summary.stickers.page}
+                totalPages={summary.stickers.totalPages}
+                onChange={setStickerPage}
+              />
             }
             renderItem={(item) => (
               <article key={item._id} className="chip-item chip-item-sticker chip-item-sticker-tone">
@@ -853,7 +1143,10 @@ export default function DashboardPage() {
                   onClick={() =>
                     http(`/api/stickers/${item._id}`, {
                       method: "DELETE",
-                    }).then(refreshSummary)
+                    }).then(() => {
+                      refreshSummary();
+                      refreshStickers(stickerPage, search.stickers);
+                    })
                   }
                 >
                   {"\u00D7"}
@@ -937,6 +1230,31 @@ export default function DashboardPage() {
                 </div>
               </label>
               <label className="color-setting">
+                <span>Color de la etiqueta MOD</span>
+                <div className="color-input-row">
+                  <button
+                    type="button"
+                    className="color-swatch-button"
+                    onClick={() => modBadgeColorInputRef.current?.click()}
+                    aria-label="Elegir color de la etiqueta MOD"
+                    title="Elegir color de la etiqueta MOD"
+                  >
+                    <span
+                      className="color-swatch"
+                      style={{ backgroundColor: overlayModBadgeColor }}
+                    />
+                  </button>
+                  <input
+                    ref={modBadgeColorInputRef}
+                    className="color-picker-hidden"
+                    type="color"
+                    value={overlayModBadgeColor}
+                    onChange={(e) => updateOverlayModBadgeColor(e.target.value)}
+                  />
+                  <code>{overlayModBadgeColor}</code>
+                </div>
+              </label>
+              <label className="color-setting">
                 <span>Transparencia</span>
                 <div className="opacity-row">
                   <input
@@ -951,6 +1269,25 @@ export default function DashboardPage() {
                   <code>{Math.round(overlayOpacity * 100)}%</code>
                 </div>
               </label>
+              <label className="color-setting">
+                <span>Alineacion del chat</span>
+                <div className="segmented-control">
+                  <button
+                    type="button"
+                    className={overlayAlignment === "left" ? "segment-button segment-button-active" : "segment-button"}
+                    onClick={() => updateOverlayAlignment("left")}
+                  >
+                    Izquierda
+                  </button>
+                  <button
+                    type="button"
+                    className={overlayAlignment === "right" ? "segment-button segment-button-active" : "segment-button"}
+                    onClick={() => updateOverlayAlignment("right")}
+                  >
+                    Derecha
+                  </button>
+                </div>
+              </label>
               <OverlayPreview overlayConfig={summary.overlayConfig} />
             </div>
           </section>
@@ -961,12 +1298,30 @@ export default function DashboardPage() {
             </div>
             <div className="message-feed">
               {summary.recentMessages.map((message) => (
-                <ChatBubbleCard key={message._id} message={message} showOriginal />
+                <ChatBubbleCard
+                  key={message._id}
+                  message={message}
+                  showOriginal
+                  overlayConfig={summary.overlayConfig}
+                />
               ))}
             </div>
           </section>
         </section>
       </section>
+
+      <footer className="dashboard-footer">
+        <span>Hecho con</span>
+        <span className="footer-heart" aria-hidden="true">♥</span>
+        <a
+          href="https://gilo.mx"
+          target="_blank"
+          rel="noreferrer"
+          className="footer-link"
+        >
+          gilo.mx
+        </a>
+      </footer>
     </main>
   );
 }

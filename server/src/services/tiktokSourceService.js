@@ -1,11 +1,12 @@
 import WebSocket from "ws";
 import { env } from "../config/env.js";
-import { Message } from "../models/Message.js";
 import { emitAppEvent } from "./socketHub.js";
 import { updateLiveStats } from "./liveStatsService.js";
+import { createMessage, findDuplicateQueuedMessage } from "./messageStoreService.js";
 import { isUserMuted, rememberLiveUser } from "./liveUsersService.js";
 import { moderateIncomingMessage } from "./moderationService.js";
 import { getQueueSnapshot } from "./queueService.js";
+import { getReaderConfig } from "./readerConfigService.js";
 
 let socket = null;
 
@@ -53,7 +54,17 @@ function pickUser(data = {}) {
     userId: String(firstDefined(data?.userId, directUser.userId, user.userId, user.user_id, user.id, user.uid) || ""),
     uniqueId: uniqueId || "",
     nickname: nickname || "",
-    profilePictureUrl: profilePictureUrl || ""
+    profilePictureUrl: profilePictureUrl || "",
+    isModerator: Boolean(
+      firstDefined(
+        data?.isModerator,
+        data?.userIdentity?.isModeratorOfAnchor,
+        directUser.isModerator,
+        directUser?.userIdentity?.isModeratorOfAnchor,
+        user.isModerator,
+        user.is_moderator
+      )
+    )
   };
 }
 
@@ -75,17 +86,44 @@ async function handleChatMessage(rawEvent) {
     return;
   }
 
-  const comment = payload.comment || payload?.data?.comment || "";
-  if (!comment.trim()) {
+  const rawComment = payload.comment || payload?.data?.comment || "";
+  const emotes = payload?.emotes || payload?.data?.emotes || [];
+  const hasEmotes = Array.isArray(emotes) && emotes.length > 0;
+  if (!rawComment.trim() && !hasEmotes) {
     return;
   }
 
-  const moderation = await moderateIncomingMessage(comment);
+  const comment = rawComment || " ";
+  const readerConfig = await getReaderConfig();
+
+  const moderation = await moderateIncomingMessage(comment, emotes, {
+    blockWeirdChars: readerConfig.blockWeirdChars,
+    reduceEmojiSpam: readerConfig.reduceEmojiSpam
+  });
   const sender = pickUser(payload);
   await rememberLiveUser(sender);
   const muted = await isUserMuted(sender.uniqueId);
 
-  const message = await Message.create({
+  let queueStatus = muted ? "muted" : "queued";
+  const hasReadableTtsContent = Boolean(moderation.ttsMessage?.trim());
+
+  if (!muted && !hasReadableTtsContent) {
+    queueStatus = "skipped";
+  }
+
+  if (!muted && queueStatus === "queued" && readerConfig.modsOnly && !sender.isModerator) {
+    queueStatus = "skipped";
+  }
+
+  if (!muted && queueStatus === "queued" && readerConfig.noSpam) {
+    const duplicateQueuedMessage = findDuplicateQueuedMessage(sender.uniqueId, comment);
+
+    if (duplicateQueuedMessage) {
+      queueStatus = "skipped";
+    }
+  }
+
+  const message = createMessage({
     sourceEvent: event,
     sender,
     originalMessage: comment,
@@ -94,7 +132,7 @@ async function handleChatMessage(rawEvent) {
     renderedSegments: moderation.renderedSegments,
     flags: moderation.flags,
     rawEvent,
-    queueStatus: muted ? "muted" : "queued"
+    queueStatus
   });
 
   emitAppEvent("message:new", message);

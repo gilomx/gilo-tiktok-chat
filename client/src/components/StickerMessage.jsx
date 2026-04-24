@@ -9,6 +9,13 @@ export default function StickerMessage({ segments }) {
             src={segment.stickerUrl}
             alt={segment.label}
           />
+        ) : segment.type === "emote" ? (
+          <img
+            key={`${segment.emoteId}-${index}`}
+            className="inline-sticker inline-emote"
+            src={segment.emoteUrl}
+            alt={segment.label || "Emote"}
+          />
         ) : (
           <span key={`text-${index}`}>{segment.value}</span>
         )
@@ -16,4 +23,3 @@ export default function StickerMessage({ segments }) {
     </span>
   );
 }
-

@@ -1,5 +1,12 @@
-import { Message } from "../models/Message.js";
 import { QueueState } from "../models/QueueState.js";
+import { buildTtsMessageFromSegments } from "./moderationService.js";
+import {
+  findFirstMessage,
+  getMessageById,
+  listMessages,
+  updateMessage,
+  updateMessages
+} from "./messageStoreService.js";
 import { emitAppEvent } from "./socketHub.js";
 
 const STALE_SPEAKING_MS = 30 * 1000;
@@ -14,11 +21,10 @@ async function ensureQueueState() {
 
 async function releaseStaleSpeakingMessages() {
   const staleThreshold = new Date(Date.now() - STALE_SPEAKING_MS);
-  await Message.updateMany(
-    {
-      queueStatus: "speaking",
-      updatedAt: { $lt: staleThreshold }
-    },
+  updateMessages(
+    (message) =>
+      message.queueStatus === "speaking" &&
+      new Date(message.updatedAt) < staleThreshold,
     { queueStatus: "queued" }
   );
 }
@@ -26,10 +32,10 @@ async function releaseStaleSpeakingMessages() {
 export async function getQueueSnapshot() {
   await releaseStaleSpeakingMessages();
   const state = await ensureQueueState();
-  const [current, queued] = await Promise.all([
-    Message.findOne({ queueStatus: "speaking" }).sort({ createdAt: 1 }).lean(),
-    Message.find({ queueStatus: "queued" }).sort({ createdAt: 1 }).limit(50).lean()
-  ]);
+  const current = findFirstMessage((message) => message.queueStatus === "speaking");
+  const queued = listMessages((message) => message.queueStatus === "queued")
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+    .slice(0, 50);
 
   return {
     paused: state.paused,
@@ -44,10 +50,7 @@ export async function setQueuePaused(paused) {
   await state.save();
 
   if (paused) {
-    await Message.updateMany(
-      { queueStatus: "speaking" },
-      { queueStatus: "queued" }
-    );
+    updateMessages((message) => message.queueStatus === "speaking", { queueStatus: "queued" });
   }
 
   const snapshot = await getQueueSnapshot();
@@ -62,16 +65,15 @@ export async function claimNextMessage() {
     return null;
   }
 
-  const speaking = await Message.findOne({ queueStatus: "speaking" }).sort({ createdAt: 1 });
+  const speaking = findFirstMessage((message) => message.queueStatus === "speaking");
   if (speaking) {
     return speaking;
   }
 
-  const nextMessage = await Message.findOneAndUpdate(
-    { queueStatus: "queued" },
-    { queueStatus: "speaking" },
-    { sort: { createdAt: 1 }, new: true }
-  );
+  const nextQueued = findFirstMessage((message) => message.queueStatus === "queued");
+  const nextMessage = nextQueued
+    ? updateMessage(nextQueued._id, { queueStatus: "speaking" })
+    : null;
 
   if (nextMessage) {
     emitAppEvent("queue:updated", await getQueueSnapshot());
@@ -81,30 +83,102 @@ export async function claimNextMessage() {
 }
 
 export async function completeCurrentMessage(messageId) {
-  const message = await Message.findByIdAndUpdate(
-    messageId,
-    { queueStatus: "done", spokenAt: new Date() },
-    { new: true }
-  );
+  const message = updateMessage(messageId, {
+    queueStatus: "done",
+    spokenAt: new Date().toISOString()
+  });
   emitAppEvent("queue:updated", await getQueueSnapshot());
   return message;
 }
 
 export async function removeQueuedMessage(messageId) {
-  const message = await Message.findOneAndUpdate(
-    { _id: messageId, queueStatus: "queued" },
-    { queueStatus: "removed" },
-    { new: true }
-  );
+  const current = getMessageById(messageId);
+  const message = current?.queueStatus === "queued"
+    ? updateMessage(messageId, { queueStatus: "removed" })
+    : null;
   emitAppEvent("queue:updated", await getQueueSnapshot());
   return message;
 }
 
 export async function clearQueuedMessages() {
-  await Message.updateMany(
-    { queueStatus: { $in: ["queued", "speaking"] } },
+  updateMessages(
+    (message) => ["queued", "speaking"].includes(message.queueStatus),
     { queueStatus: "removed" }
   );
+  const snapshot = await getQueueSnapshot();
+  emitAppEvent("queue:updated", snapshot);
+  return snapshot;
+}
+
+export async function removeQueuedMessagesBySender(uniqueId) {
+  const normalizedUniqueId = String(uniqueId || "").trim();
+  if (!normalizedUniqueId) {
+    return getQueueSnapshot();
+  }
+
+  updateMessages(
+    (message) =>
+      message.sender?.uniqueId === normalizedUniqueId &&
+      message.queueStatus === "queued",
+    { queueStatus: "removed" }
+  );
+
+  const snapshot = await getQueueSnapshot();
+  emitAppEvent("queue:updated", snapshot);
+  return snapshot;
+}
+
+export async function reanalyzeQueuedMessages(readerConfig = {}) {
+  await releaseStaleSpeakingMessages();
+
+  const queuedMessages = listMessages((message) => message.queueStatus === "queued")
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+  const messagesToRemove = [];
+  const seenMessages = new Set();
+
+  for (const message of queuedMessages) {
+    const nextTtsMessage = buildTtsMessageFromSegments(
+      message.renderedSegments || [],
+      { reduceEmojiSpam: readerConfig.reduceEmojiSpam }
+    );
+
+    if (!nextTtsMessage.trim()) {
+      messagesToRemove.push(message._id);
+      continue;
+    }
+
+    if (nextTtsMessage !== message.ttsMessage) {
+      updateMessage(message._id, { ttsMessage: nextTtsMessage });
+    }
+
+    if (readerConfig.blockWeirdChars && message.flags?.foreignSegments?.length) {
+      messagesToRemove.push(message._id);
+      continue;
+    }
+
+    if (readerConfig.modsOnly && !message.sender?.isModerator) {
+      messagesToRemove.push(message._id);
+      continue;
+    }
+
+    if (readerConfig.noSpam) {
+      const dedupeKey = `${message.sender?.uniqueId || ""}::${message.originalMessage || ""}`;
+      if (seenMessages.has(dedupeKey)) {
+        messagesToRemove.push(message._id);
+        continue;
+      }
+      seenMessages.add(dedupeKey);
+    }
+  }
+
+  if (messagesToRemove.length) {
+    updateMessages(
+      (message) => messagesToRemove.includes(message._id),
+      { queueStatus: "removed" }
+    );
+  }
+
   const snapshot = await getQueueSnapshot();
   emitAppEvent("queue:updated", snapshot);
   return snapshot;

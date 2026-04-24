@@ -2,6 +2,7 @@ import textToSpeech from "@google-cloud/text-to-speech";
 import fs from "fs";
 import { env } from "../config/env.js";
 import { ReaderConfig } from "../models/ReaderConfig.js";
+import { reanalyzeQueuedMessages } from "./queueService.js";
 import { emitAppEvent } from "./socketHub.js";
 
 const DEFAULT_READER_CONFIG = {
@@ -10,7 +11,11 @@ const DEFAULT_READER_CONFIG = {
   voiceName: "es-US-Standard-A",
   speakingRate: 1,
   pitch: 0,
-  volumeGainDb: 0
+  volumeGainDb: 0,
+  modsOnly: false,
+  noSpam: true,
+  blockWeirdChars: true,
+  reduceEmojiSpam: true
 };
 
 const FALLBACK_READER_VOICE_OPTIONS = [
@@ -26,6 +31,10 @@ const FALLBACK_READER_VOICE_OPTIONS = [
   ["es-ES", "es-ES-Standard-A", "FEMALE"],
   ["es-ES", "es-ES-Standard-B", "MALE"],
   ["es-ES", "es-ES-Standard-C", "FEMALE"],
+  ["es-ES", "es-ES-Standard-E", "MALE"],
+  ["es-ES", "es-ES-Standard-F", "FEMALE"],
+  ["es-ES", "es-ES-Standard-G", "MALE"],
+  ["es-ES", "es-ES-Standard-H", "FEMALE"],
   ["es-US", "es-US-Standard-A", "FEMALE"],
   ["es-US", "es-US-Standard-B", "MALE"],
   ["es-US", "es-US-Standard-C", "MALE"],
@@ -41,11 +50,11 @@ const FALLBACK_READER_VOICE_OPTIONS = [
   ["pt-BR", "pt-BR-Standard-B", "MALE"],
   ["ru-RU", "ru-RU-Standard-A", "FEMALE"],
   ["ru-RU", "ru-RU-Standard-B", "MALE"]
-].map(([languageCode, voiceName, gender]) => ({
+].map(([languageCode, voiceName, gender, tier = "Standard"]) => ({
   languageCode,
   voiceName,
   label: voiceName,
-  tier: "Standard",
+  tier,
   gender
 }));
 
@@ -219,6 +228,16 @@ async function buildReaderConfigPayload(config) {
       DEFAULT_READER_CONFIG.volumeGainDb,
       -96,
       16
+    ),
+    modsOnly: normalizeBoolean(config?.modsOnly, DEFAULT_READER_CONFIG.modsOnly),
+    noSpam: normalizeBoolean(config?.noSpam, DEFAULT_READER_CONFIG.noSpam),
+    blockWeirdChars: normalizeBoolean(
+      config?.blockWeirdChars,
+      DEFAULT_READER_CONFIG.blockWeirdChars
+    ),
+    reduceEmojiSpam: normalizeBoolean(
+      config?.reduceEmojiSpam,
+      DEFAULT_READER_CONFIG.reduceEmojiSpam
     )
   };
 }
@@ -250,6 +269,7 @@ export async function updateReaderConfig(input) {
   ).lean();
 
   const normalized = await buildReaderConfigPayload(config);
+  await reanalyzeQueuedMessages(normalized);
   emitAppEvent("reader:config-updated", normalized);
   return normalized;
 }

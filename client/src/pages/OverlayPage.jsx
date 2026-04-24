@@ -24,6 +24,13 @@ export default function OverlayPage() {
   }, []);
 
   useEffect(() => {
+    document.body.classList.add("overlay-page");
+    return () => {
+      document.body.classList.remove("overlay-page");
+    };
+  }, []);
+
+  useEffect(() => {
     if (!socket) return undefined;
 
     const handleNewMessage = (message) => {
@@ -58,11 +65,14 @@ export default function OverlayPage() {
         {messages.map((message) => (
           <article
             key={message._id}
-            className="overlay-bubble"
+            className={`overlay-bubble overlay-bubble-${overlayConfig.alignment || "right"}`}
             style={{
               "--overlay-bubble-top": overlayConfig.theme?.bubbleTopRgba,
               "--overlay-bubble-bottom": overlayConfig.theme?.bubbleBottomRgba,
-              "--overlay-bubble-shadow": overlayConfig.theme?.bubbleShadowColor
+              "--overlay-bubble-shadow": overlayConfig.theme?.bubbleShadowColor,
+              "--mod-badge-bg": overlayConfig.theme?.modBadgeBackground,
+              "--mod-badge-border": overlayConfig.theme?.modBadgeBorder,
+              "--mod-badge-text": overlayConfig.theme?.modBadgeText
             }}
           >
             <img
@@ -72,7 +82,12 @@ export default function OverlayPage() {
             />
             <div className="bubble-content">
               <div className="bubble-header">
-                <h3>{message.sender.nickname || "Invitado"}</h3>
+                <div className="bubble-title-row">
+                  <h3>{message.sender.nickname || "Invitado"}</h3>
+                  {message.sender?.isModerator && (
+                    <span className="mod-badge">MOD</span>
+                  )}
+                </div>
                 <p>@{message.sender.uniqueId || "chat"}</p>
               </div>
               <div className="bubble-message">
