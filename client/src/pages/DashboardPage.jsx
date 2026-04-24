@@ -13,7 +13,14 @@ function OverlayPreview({ overlayConfig }) {
       isModerator: true
     },
     renderedSegments: [
-      { type: "text", value: "Este es un mensaje de preview para tu overlay" }
+      { type: "text", value: "Este es un mensaje " },
+      {
+        type: "sticker",
+        stickerId: "preview-sticker",
+        stickerUrl: "https://placehold.co/96x96/f59e0b/ffffff/webp?text=%E2%98%85",
+        label: "Sticker"
+      },
+      { type: "text", value: " para tu overlay" }
     ]
   };
 
@@ -27,7 +34,14 @@ function OverlayPreview({ overlayConfig }) {
           "--overlay-bubble-shadow": overlayConfig?.theme?.bubbleShadowColor,
           "--mod-badge-bg": overlayConfig?.theme?.modBadgeBackground,
           "--mod-badge-border": overlayConfig?.theme?.modBadgeBorder,
-          "--mod-badge-text": overlayConfig?.theme?.modBadgeText
+          "--mod-badge-text": overlayConfig?.theme?.modBadgeText,
+          "--bubble-name-color": overlayConfig?.theme?.nameTextColor,
+          "--bubble-handle-color": overlayConfig?.theme?.handleTextColor,
+          "--bubble-message-color": overlayConfig?.theme?.messageTextColor,
+          "--bubble-name-size": `${overlayConfig?.theme?.nameFontSizeRem || 0.9}rem`,
+          "--bubble-handle-size": `${overlayConfig?.theme?.handleFontSizeRem || 0.74}rem`,
+          "--bubble-message-size": `${overlayConfig?.theme?.messageFontSizeRem || 0.84}rem`,
+          "--overlay-sticker-size": `${overlayConfig?.theme?.stickerSizePx || 63}px`
         }}
       >
         <img
@@ -193,10 +207,17 @@ function percentToDb(percent) {
   return Math.max(-96, Math.min(16, 20 * Math.log10(normalizedPercent / 100)));
 }
 
+function scaleToPercent(value, baseline) {
+  return Math.round((Number(value || baseline) / baseline) * 100);
+}
+
 export default function DashboardPage() {
   const socket = useSocket();
   const colorInputRef = useRef(null);
   const modBadgeColorInputRef = useRef(null);
+  const nameTextColorInputRef = useRef(null);
+  const handleTextColorInputRef = useRef(null);
+  const messageTextColorInputRef = useRef(null);
   const [summary, setSummary] = useState({
     queue: { paused: false, current: null, items: [] },
     recentMessages: [],
@@ -241,9 +262,14 @@ export default function DashboardPage() {
     liveUsers: [],
     mutedUsers: [],
     overlayConfig: {
-      bubbleBaseColor: "#9a5cff",
+      bubbleBaseColor: "#8c00ff",
       modBadgeColor: "#ff6e8a",
+      nameTextColor: "#ffffff",
+      handleTextColor: "#ffffff",
+      messageTextColor: "#ffffff",
       bubbleOpacity: 0.98,
+      softTopFade: true,
+      fixedBubbleWidth: false,
       alignment: "right",
       theme: {
         bubbleTopColor: "#af72ff",
@@ -253,7 +279,14 @@ export default function DashboardPage() {
         bubbleBottomRgba: "rgba(113, 57, 229, 0.98)",
         modBadgeBackground: "rgba(255, 110, 138, 0.18)",
         modBadgeBorder: "rgba(255, 145, 165, 0.32)",
-        modBadgeText: "#ffb4c2"
+        modBadgeText: "#ffb4c2",
+        nameTextColor: "#ffffff",
+        handleTextColor: "#ffffff",
+        messageTextColor: "#ffffff",
+        nameFontSizeRem: 0.9,
+        handleFontSizeRem: 0.74,
+        messageFontSizeRem: 0.84,
+        stickerSizePx: 63
       }
     }
   });
@@ -272,10 +305,20 @@ export default function DashboardPage() {
     stickerFile: null,
   });
   const [isStickerDragActive, setIsStickerDragActive] = useState(false);
-  const [overlayColor, setOverlayColor] = useState("#9a5cff");
+  const [overlayColor, setOverlayColor] = useState("#8c00ff");
   const [overlayModBadgeColor, setOverlayModBadgeColor] = useState("#ff6e8a");
+  const [overlayNameTextColor, setOverlayNameTextColor] = useState("#ffffff");
+  const [overlayHandleTextColor, setOverlayHandleTextColor] = useState("#ffffff");
+  const [overlayMessageTextColor, setOverlayMessageTextColor] = useState("#ffffff");
+  const [overlayNameFontSizeRem, setOverlayNameFontSizeRem] = useState(0.9);
+  const [overlayHandleFontSizeRem, setOverlayHandleFontSizeRem] = useState(0.74);
+  const [overlayMessageFontSizeRem, setOverlayMessageFontSizeRem] = useState(0.84);
+  const [overlayStickerSizePx, setOverlayStickerSizePx] = useState(63);
   const [overlayOpacity, setOverlayOpacity] = useState(0.98);
+  const [overlaySoftTopFade, setOverlaySoftTopFade] = useState(true);
+  const [overlayFixedBubbleWidth, setOverlayFixedBubbleWidth] = useState(false);
   const [overlayAlignment, setOverlayAlignment] = useState("right");
+  const [overlayUrlCopied, setOverlayUrlCopied] = useState(false);
   const [forbiddenPage, setForbiddenPage] = useState(1);
   const [replacementPage, setReplacementPage] = useState(1);
   const [stickerPage, setStickerPage] = useState(1);
@@ -286,9 +329,18 @@ export default function DashboardPage() {
   const refreshSummary = async () => {
     const data = await http("/api/dashboard/summary");
     setSummary(data);
-    setOverlayColor(data.overlayConfig?.bubbleBaseColor || "#9a5cff");
+    setOverlayColor(data.overlayConfig?.bubbleBaseColor || "#8c00ff");
     setOverlayModBadgeColor(data.overlayConfig?.modBadgeColor || "#ff6e8a");
+    setOverlayNameTextColor(data.overlayConfig?.nameTextColor || "#ffffff");
+    setOverlayHandleTextColor(data.overlayConfig?.handleTextColor || "#ffffff");
+    setOverlayMessageTextColor(data.overlayConfig?.messageTextColor || "#ffffff");
+    setOverlayNameFontSizeRem(data.overlayConfig?.nameFontSizeRem ?? 0.9);
+    setOverlayHandleFontSizeRem(data.overlayConfig?.handleFontSizeRem ?? 0.74);
+    setOverlayMessageFontSizeRem(data.overlayConfig?.messageFontSizeRem ?? 0.84);
+    setOverlayStickerSizePx(data.overlayConfig?.stickerSizePx ?? 63);
     setOverlayOpacity(data.overlayConfig?.bubbleOpacity ?? 0.98);
+    setOverlaySoftTopFade(data.overlayConfig?.softTopFade ?? true);
+    setOverlayFixedBubbleWidth(data.overlayConfig?.fixedBubbleWidth ?? false);
     setOverlayAlignment(data.overlayConfig?.alignment || "right");
   };
 
@@ -370,9 +422,18 @@ export default function DashboardPage() {
     };
     const handleOverlayConfig = (config) => {
       setSummary((current) => ({ ...current, overlayConfig: config }));
-      setOverlayColor(config.bubbleBaseColor);
+      setOverlayColor(config.bubbleBaseColor || "#8c00ff");
       setOverlayModBadgeColor(config.modBadgeColor || "#ff6e8a");
+      setOverlayNameTextColor(config.nameTextColor || "#ffffff");
+      setOverlayHandleTextColor(config.handleTextColor || "#ffffff");
+      setOverlayMessageTextColor(config.messageTextColor || "#ffffff");
+      setOverlayNameFontSizeRem(config.nameFontSizeRem ?? 0.9);
+      setOverlayHandleFontSizeRem(config.handleFontSizeRem ?? 0.74);
+      setOverlayMessageFontSizeRem(config.messageFontSizeRem ?? 0.84);
+      setOverlayStickerSizePx(config.stickerSizePx ?? 63);
       setOverlayOpacity(config.bubbleOpacity ?? 0.98);
+      setOverlaySoftTopFade(config.softTopFade ?? true);
+      setOverlayFixedBubbleWidth(config.fixedBubbleWidth ?? false);
       setOverlayAlignment(config.alignment || "right");
     };
     const handleLiveStats = (liveStats) => {
@@ -558,50 +619,130 @@ export default function DashboardPage() {
       body: JSON.stringify(nextConfig)
     });
     setSummary((current) => ({ ...current, overlayConfig: config }));
-    setOverlayColor(config.bubbleBaseColor);
+    setOverlayColor(config.bubbleBaseColor || "#8c00ff");
     setOverlayModBadgeColor(config.modBadgeColor || "#ff6e8a");
+    setOverlayNameTextColor(config.nameTextColor || "#ffffff");
+    setOverlayHandleTextColor(config.handleTextColor || "#ffffff");
+    setOverlayMessageTextColor(config.messageTextColor || "#ffffff");
+    setOverlayNameFontSizeRem(config.nameFontSizeRem ?? 0.9);
+    setOverlayHandleFontSizeRem(config.handleFontSizeRem ?? 0.74);
+    setOverlayMessageFontSizeRem(config.messageFontSizeRem ?? 0.84);
+    setOverlayStickerSizePx(config.stickerSizePx ?? 63);
     setOverlayOpacity(config.bubbleOpacity ?? 0.98);
+    setOverlaySoftTopFade(config.softTopFade ?? true);
+    setOverlayFixedBubbleWidth(config.fixedBubbleWidth ?? false);
     setOverlayAlignment(config.alignment || "right");
   };
 
+  const buildNextOverlayConfig = (overrides = {}) => ({
+    bubbleBaseColor: overlayColor,
+    modBadgeColor: overlayModBadgeColor,
+    nameTextColor: overlayNameTextColor,
+    handleTextColor: overlayHandleTextColor,
+    messageTextColor: overlayMessageTextColor,
+    nameFontSizeRem: overlayNameFontSizeRem,
+    handleFontSizeRem: overlayHandleFontSizeRem,
+    messageFontSizeRem: overlayMessageFontSizeRem,
+    stickerSizePx: overlayStickerSizePx,
+    bubbleOpacity: overlayOpacity,
+    softTopFade: overlaySoftTopFade,
+    fixedBubbleWidth: overlayFixedBubbleWidth,
+    alignment: overlayAlignment,
+    ...overrides
+  });
+
   const updateOverlayColor = async (nextColor) => {
     setOverlayColor(nextColor);
-    await saveOverlayConfig({
-      bubbleBaseColor: nextColor,
-      modBadgeColor: overlayModBadgeColor,
-      bubbleOpacity: overlayOpacity,
-      alignment: overlayAlignment
-    });
+    await saveOverlayConfig(buildNextOverlayConfig({ bubbleBaseColor: nextColor }));
   };
 
   const updateOverlayModBadgeColor = async (nextColor) => {
     setOverlayModBadgeColor(nextColor);
-    await saveOverlayConfig({
-      bubbleBaseColor: overlayColor,
-      modBadgeColor: nextColor,
-      bubbleOpacity: overlayOpacity,
-      alignment: overlayAlignment
-    });
+    await saveOverlayConfig(buildNextOverlayConfig({ modBadgeColor: nextColor }));
+  };
+
+  const updateOverlayNameTextColor = async (nextColor) => {
+    setOverlayNameTextColor(nextColor);
+    await saveOverlayConfig(buildNextOverlayConfig({ nameTextColor: nextColor }));
+  };
+
+  const updateOverlayHandleTextColor = async (nextColor) => {
+    setOverlayHandleTextColor(nextColor);
+    await saveOverlayConfig(buildNextOverlayConfig({ handleTextColor: nextColor }));
+  };
+
+  const updateOverlayMessageTextColor = async (nextColor) => {
+    setOverlayMessageTextColor(nextColor);
+    await saveOverlayConfig(buildNextOverlayConfig({ messageTextColor: nextColor }));
+  };
+
+  const updateOverlayNameFontSizeRem = async (nextSize) => {
+    setOverlayNameFontSizeRem(nextSize);
+    await saveOverlayConfig(buildNextOverlayConfig({ nameFontSizeRem: nextSize }));
+  };
+
+  const updateOverlayHandleFontSizeRem = async (nextSize) => {
+    setOverlayHandleFontSizeRem(nextSize);
+    await saveOverlayConfig(buildNextOverlayConfig({ handleFontSizeRem: nextSize }));
+  };
+
+  const updateOverlayMessageFontSizeRem = async (nextSize) => {
+    setOverlayMessageFontSizeRem(nextSize);
+    await saveOverlayConfig(buildNextOverlayConfig({ messageFontSizeRem: nextSize }));
+  };
+
+  const updateOverlayStickerSizePx = async (nextSize) => {
+    setOverlayStickerSizePx(nextSize);
+    await saveOverlayConfig(buildNextOverlayConfig({ stickerSizePx: nextSize }));
   };
 
   const updateOverlayOpacity = async (nextOpacity) => {
     setOverlayOpacity(nextOpacity);
-    await saveOverlayConfig({
-      bubbleBaseColor: overlayColor,
-      modBadgeColor: overlayModBadgeColor,
-      bubbleOpacity: nextOpacity,
-      alignment: overlayAlignment
-    });
+    await saveOverlayConfig(buildNextOverlayConfig({ bubbleOpacity: nextOpacity }));
   };
 
   const updateOverlayAlignment = async (nextAlignment) => {
     setOverlayAlignment(nextAlignment);
+    await saveOverlayConfig(buildNextOverlayConfig({ alignment: nextAlignment }));
+  };
+
+  const updateOverlaySoftTopFade = async (nextValue) => {
+    setOverlaySoftTopFade(nextValue);
+    await saveOverlayConfig(buildNextOverlayConfig({ softTopFade: nextValue }));
+  };
+
+  const updateOverlayFixedBubbleWidth = async (nextValue) => {
+    setOverlayFixedBubbleWidth(nextValue);
+    await saveOverlayConfig(buildNextOverlayConfig({ fixedBubbleWidth: nextValue }));
+  };
+
+  const resetOverlayStyle = async () => {
     await saveOverlayConfig({
-      bubbleBaseColor: overlayColor,
-      modBadgeColor: overlayModBadgeColor,
-      bubbleOpacity: overlayOpacity,
-      alignment: nextAlignment
+      bubbleBaseColor: "#8c00ff",
+      modBadgeColor: "#ff6e8a",
+      nameTextColor: "#ffffff",
+      handleTextColor: "#ffffff",
+      messageTextColor: "#ffffff",
+      nameFontSizeRem: 0.9,
+      handleFontSizeRem: 0.74,
+      messageFontSizeRem: 0.84,
+      stickerSizePx: 63,
+      bubbleOpacity: 0.98,
+      softTopFade: true,
+      fixedBubbleWidth: false,
+      alignment: "right"
     });
+  };
+
+  const copyOverlayUrl = async () => {
+    const overlayUrl = `${window.location.origin}/overlay`;
+    try {
+      await navigator.clipboard.writeText(overlayUrl);
+      setOverlayUrlCopied(true);
+      window.setTimeout(() => setOverlayUrlCopied(false), 1800);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const toggleLiveUserMute = async (user) => {
@@ -1202,58 +1343,145 @@ export default function DashboardPage() {
           <section className="panel">
             <div className="panel-header">
               <h2>Personalizar overlay</h2>
+              <button
+                type="button"
+                className="button-secondary button-compact"
+                onClick={copyOverlayUrl}
+              >
+                {overlayUrlCopied ? "URL copiada" : "Copiar URL"}
+              </button>
             </div>
             <div className="overlay-settings">
-              <label className="color-setting">
-                <span>Color base del overlay</span>
-                <div className="color-input-row">
-                  <button
-                    type="button"
-                    className="color-swatch-button"
-                    onClick={() => colorInputRef.current?.click()}
-                    aria-label="Elegir color del overlay"
-                    title="Elegir color del overlay"
-                  >
-                    <span
-                      className="color-swatch"
-                      style={{ backgroundColor: overlayColor }}
+              <p className="helper-copy overlay-helper-copy">
+                Tamano recomendado del overlay: 500x300.
+              </p>
+              <div className="overlay-color-grid">
+                <label className="color-setting color-setting-compact">
+                  <span>Background</span>
+                  <div className="color-input-row">
+                    <button
+                      type="button"
+                      className="color-swatch-button"
+                      onClick={() => colorInputRef.current?.click()}
+                      aria-label="Elegir color del overlay"
+                      title="Elegir color del overlay"
+                    >
+                      <span
+                        className="color-swatch"
+                        style={{ backgroundColor: overlayColor }}
+                      />
+                    </button>
+                    <input
+                      ref={colorInputRef}
+                      className="color-picker-hidden"
+                      type="color"
+                      value={overlayColor}
+                      onChange={(e) => updateOverlayColor(e.target.value)}
                     />
-                  </button>
-                  <input
-                    ref={colorInputRef}
-                    className="color-picker-hidden"
-                    type="color"
-                    value={overlayColor}
-                    onChange={(e) => updateOverlayColor(e.target.value)}
-                  />
-                  <code>{overlayColor}</code>
-                </div>
-              </label>
-              <label className="color-setting">
-                <span>Color de la etiqueta MOD</span>
-                <div className="color-input-row">
-                  <button
-                    type="button"
-                    className="color-swatch-button"
-                    onClick={() => modBadgeColorInputRef.current?.click()}
-                    aria-label="Elegir color de la etiqueta MOD"
-                    title="Elegir color de la etiqueta MOD"
-                  >
-                    <span
-                      className="color-swatch"
-                      style={{ backgroundColor: overlayModBadgeColor }}
+                    <code>{overlayColor}</code>
+                  </div>
+                </label>
+                <label className="color-setting color-setting-compact">
+                  <span>Etiqueta MOD</span>
+                  <div className="color-input-row">
+                    <button
+                      type="button"
+                      className="color-swatch-button"
+                      onClick={() => modBadgeColorInputRef.current?.click()}
+                      aria-label="Elegir color de la etiqueta MOD"
+                      title="Elegir color de la etiqueta MOD"
+                    >
+                      <span
+                        className="color-swatch"
+                        style={{ backgroundColor: overlayModBadgeColor }}
+                      />
+                    </button>
+                    <input
+                      ref={modBadgeColorInputRef}
+                      className="color-picker-hidden"
+                      type="color"
+                      value={overlayModBadgeColor}
+                      onChange={(e) => updateOverlayModBadgeColor(e.target.value)}
                     />
-                  </button>
-                  <input
-                    ref={modBadgeColorInputRef}
-                    className="color-picker-hidden"
-                    type="color"
-                    value={overlayModBadgeColor}
-                    onChange={(e) => updateOverlayModBadgeColor(e.target.value)}
-                  />
-                  <code>{overlayModBadgeColor}</code>
-                </div>
-              </label>
+                    <code>{overlayModBadgeColor}</code>
+                  </div>
+                </label>
+                <label className="color-setting color-setting-compact">
+                  <span>Nombre</span>
+                  <div className="color-input-row">
+                    <button
+                      type="button"
+                      className="color-swatch-button"
+                      onClick={() => nameTextColorInputRef.current?.click()}
+                      aria-label="Elegir color del nombre"
+                      title="Elegir color del nombre"
+                    >
+                      <span
+                        className="color-swatch"
+                        style={{ backgroundColor: overlayNameTextColor }}
+                      />
+                    </button>
+                    <input
+                      ref={nameTextColorInputRef}
+                      className="color-picker-hidden"
+                      type="color"
+                      value={overlayNameTextColor}
+                      onChange={(e) => updateOverlayNameTextColor(e.target.value)}
+                    />
+                    <code>{overlayNameTextColor}</code>
+                  </div>
+                </label>
+                <label className="color-setting color-setting-compact">
+                  <span>Mensaje</span>
+                  <div className="color-input-row">
+                    <button
+                      type="button"
+                      className="color-swatch-button"
+                      onClick={() => messageTextColorInputRef.current?.click()}
+                      aria-label="Elegir color del mensaje"
+                      title="Elegir color del mensaje"
+                    >
+                      <span
+                        className="color-swatch"
+                        style={{ backgroundColor: overlayMessageTextColor }}
+                      />
+                    </button>
+                    <input
+                      ref={messageTextColorInputRef}
+                      className="color-picker-hidden"
+                      type="color"
+                      value={overlayMessageTextColor}
+                      onChange={(e) => updateOverlayMessageTextColor(e.target.value)}
+                    />
+                    <code>{overlayMessageTextColor}</code>
+                  </div>
+                </label>
+                <label className="color-setting color-setting-compact">
+                  <span>Arroba</span>
+                  <div className="color-input-row">
+                    <button
+                      type="button"
+                      className="color-swatch-button"
+                      onClick={() => handleTextColorInputRef.current?.click()}
+                      aria-label="Elegir color del arroba"
+                      title="Elegir color del arroba"
+                    >
+                      <span
+                        className="color-swatch"
+                        style={{ backgroundColor: overlayHandleTextColor }}
+                      />
+                    </button>
+                    <input
+                      ref={handleTextColorInputRef}
+                      className="color-picker-hidden"
+                      type="color"
+                      value={overlayHandleTextColor}
+                      onChange={(e) => updateOverlayHandleTextColor(e.target.value)}
+                    />
+                    <code>{overlayHandleTextColor}</code>
+                  </div>
+                </label>
+              </div>
               <label className="color-setting">
                 <span>Transparencia</span>
                 <div className="opacity-row">
@@ -1269,6 +1497,68 @@ export default function DashboardPage() {
                   <code>{Math.round(overlayOpacity * 100)}%</code>
                 </div>
               </label>
+              <div className="overlay-font-grid">
+                <label className="color-setting color-setting-compact">
+                  <span>Tamano del nombre</span>
+                  <div className="opacity-row">
+                    <input
+                      className="opacity-slider"
+                      type="range"
+                      min="0.76"
+                      max="1.2"
+                      step="0.02"
+                      value={overlayNameFontSizeRem}
+                      onChange={(e) => updateOverlayNameFontSizeRem(Number(e.target.value))}
+                    />
+                    <code>{scaleToPercent(overlayNameFontSizeRem, 0.9)}%</code>
+                  </div>
+                </label>
+                <label className="color-setting color-setting-compact">
+                  <span>Tamano del mensaje</span>
+                  <div className="opacity-row">
+                    <input
+                      className="opacity-slider"
+                      type="range"
+                      min="0.72"
+                      max="1.12"
+                      step="0.02"
+                      value={overlayMessageFontSizeRem}
+                      onChange={(e) => updateOverlayMessageFontSizeRem(Number(e.target.value))}
+                    />
+                    <code>{scaleToPercent(overlayMessageFontSizeRem, 0.84)}%</code>
+                  </div>
+                </label>
+                <label className="color-setting color-setting-compact">
+                  <span>Tamano del arroba</span>
+                  <div className="opacity-row">
+                    <input
+                      className="opacity-slider"
+                      type="range"
+                      min="0.62"
+                      max="1"
+                      step="0.02"
+                      value={overlayHandleFontSizeRem}
+                      onChange={(e) => updateOverlayHandleFontSizeRem(Number(e.target.value))}
+                    />
+                    <code>{scaleToPercent(overlayHandleFontSizeRem, 0.74)}%</code>
+                  </div>
+                </label>
+                <label className="color-setting color-setting-compact">
+                  <span>Tamano del sticker</span>
+                  <div className="opacity-row">
+                    <input
+                      className="opacity-slider"
+                      type="range"
+                      min="48"
+                      max="96"
+                      step="2"
+                      value={overlayStickerSizePx}
+                      onChange={(e) => updateOverlayStickerSizePx(Number(e.target.value))}
+                    />
+                    <code>{scaleToPercent(overlayStickerSizePx, 63)}%</code>
+                  </div>
+                </label>
+              </div>
               <label className="color-setting">
                 <span>Alineacion del chat</span>
                 <div className="segmented-control">
@@ -1286,8 +1576,31 @@ export default function DashboardPage() {
                   >
                     Derecha
                   </button>
-                </div>
+                  </div>
+                </label>
+              <label className="reader-mini-check overlay-toggle-check">
+                <input
+                  type="checkbox"
+                  checked={overlaySoftTopFade}
+                  onChange={(e) => updateOverlaySoftTopFade(e.target.checked)}
+                />
+                <span>Suavizar corte superior</span>
               </label>
+              <label className="reader-mini-check overlay-toggle-check">
+                <input
+                  type="checkbox"
+                  checked={overlayFixedBubbleWidth}
+                  onChange={(e) => updateOverlayFixedBubbleWidth(e.target.checked)}
+                />
+                <span>Tamano fijo de comentarios</span>
+              </label>
+              <button
+                type="button"
+                className="button-secondary button-compact overlay-reset-button"
+                onClick={resetOverlayStyle}
+              >
+                Volver a estilo predeterminado
+              </button>
               <OverlayPreview overlayConfig={summary.overlayConfig} />
             </div>
           </section>
@@ -1322,6 +1635,7 @@ export default function DashboardPage() {
           gilo.mx
         </a>
       </footer>
+      <p className="dashboard-postscript">PD: cain mal</p>
     </main>
   );
 }
