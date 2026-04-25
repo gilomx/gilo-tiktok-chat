@@ -139,15 +139,19 @@ export async function clearQueuedMessages() {
   return snapshot;
 }
 
-export async function removeQueuedMessagesBySender(uniqueId) {
-  const normalizedUniqueId = String(uniqueId || "").trim();
-  if (!normalizedUniqueId) {
+export async function removeQueuedMessagesBySender(sender = {}) {
+  const normalizedUserId = String(sender?.userId || "").trim();
+  const normalizedUniqueId = String(sender?.uniqueId || sender || "").trim();
+  if (!normalizedUserId && !normalizedUniqueId) {
     return getQueueSnapshot();
   }
 
   updateMessages(
     (message) =>
-      message.sender?.uniqueId === normalizedUniqueId &&
+      (
+        (normalizedUserId && message.sender?.userId === normalizedUserId)
+        || (normalizedUniqueId && message.sender?.uniqueId === normalizedUniqueId)
+      ) &&
       message.queueStatus === "queued",
     { queueStatus: "removed" }
   );

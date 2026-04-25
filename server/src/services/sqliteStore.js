@@ -237,6 +237,15 @@ const getMutedUserByUniqueIdStmt = db.prepare(`
   WHERE uniqueId = ?
 `);
 
+const getMutedUserByUserIdStmt = db.prepare(`
+  SELECT id, userId, uniqueId, normalizedUniqueId, nickname, normalizedNickname,
+         profilePictureUrl, muted, createdAt, updatedAt
+  FROM muted_users
+  WHERE userId = ?
+  ORDER BY datetime(updatedAt) DESC
+  LIMIT 1
+`);
+
 const upsertMutedUserStmt = db.prepare(`
   INSERT INTO muted_users (
     id, userId, uniqueId, normalizedUniqueId, nickname, normalizedNickname,
@@ -259,6 +268,25 @@ const setMutedUserStateStmt = db.prepare(`
   UPDATE muted_users
   SET muted = ?, updatedAt = ?
   WHERE uniqueId = ?
+`);
+
+const setMutedUserStateByUserIdStmt = db.prepare(`
+  UPDATE muted_users
+  SET muted = ?, updatedAt = ?
+  WHERE userId = ?
+`);
+
+const updateMutedUserByIdStmt = db.prepare(`
+  UPDATE muted_users
+  SET userId = @userId,
+      uniqueId = @uniqueId,
+      normalizedUniqueId = @normalizedUniqueId,
+      nickname = @nickname,
+      normalizedNickname = @normalizedNickname,
+      profilePictureUrl = @profilePictureUrl,
+      muted = @muted,
+      updatedAt = @updatedAt
+  WHERE id = @id
 `);
 
 export function listForbiddenWords() {
@@ -415,20 +443,42 @@ export function getMutedUserByUniqueId(uniqueId) {
   return parseMutedUserRow(getMutedUserByUniqueIdStmt.get(uniqueId));
 }
 
+export function getMutedUserByUserId(userId) {
+  return parseMutedUserRow(getMutedUserByUserIdStmt.get(userId));
+}
+
 export function upsertMutedUser(payload) {
-  const existing = getMutedUserByUniqueId(payload.uniqueId);
+  const existing = payload.userId
+    ? getMutedUserByUserId(payload.userId) || getMutedUserByUniqueId(payload.uniqueId)
+    : getMutedUserByUniqueId(payload.uniqueId);
   const timestamp = nowIso();
-  upsertMutedUserStmt.run({
+  const record = {
     id: existing?._id || crypto.randomUUID(),
     ...payload,
     muted: toIntegerBoolean(payload.muted),
     createdAt: existing?.createdAt || timestamp,
     updatedAt: timestamp
-  });
-  return getMutedUserByUniqueId(payload.uniqueId);
+  };
+
+  if (existing?._id && existing.uniqueId !== payload.uniqueId) {
+    updateMutedUserByIdStmt.run(record);
+  } else {
+    upsertMutedUserStmt.run(record);
+  }
+
+  return getMutedUserByUserId(payload.userId) || getMutedUserByUniqueId(payload.uniqueId);
 }
 
-export function setMutedUserState(uniqueId, muted) {
-  setMutedUserStateStmt.run(toIntegerBoolean(muted), nowIso(), uniqueId);
+export function setMutedUserState(identifier, muted) {
+  const userId = String(identifier?.userId || "").trim();
+  const uniqueId = String(identifier?.uniqueId || identifier || "").trim();
+  const timestamp = nowIso();
+
+  if (userId) {
+    setMutedUserStateByUserIdStmt.run(toIntegerBoolean(muted), timestamp, userId);
+    return getMutedUserByUserId(userId) || getMutedUserByUniqueId(uniqueId);
+  }
+
+  setMutedUserStateStmt.run(toIntegerBoolean(muted), timestamp, uniqueId);
   return getMutedUserByUniqueId(uniqueId);
 }

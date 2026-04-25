@@ -124,7 +124,10 @@ async function handleChatMessage(rawEvent) {
   const sender = pickUser(payload);
   const readableTtsMessage = buildReadableTtsMessage(sender, moderation.ttsMessage, readerConfig);
   await rememberLiveUser(sender);
-  const muted = await isUserMuted(sender.uniqueId);
+  const muted = await isUserMuted({
+    userId: sender.userId,
+    uniqueId: sender.uniqueId
+  });
 
   let queueStatus = muted ? "muted" : "queued";
   const hasReadableTtsContent = Boolean(readableTtsMessage);

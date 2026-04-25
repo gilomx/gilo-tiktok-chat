@@ -82,6 +82,9 @@ function runSchema() {
     CREATE INDEX IF NOT EXISTS idx_muted_users_normalizedNickname
     ON muted_users (normalizedNickname);
 
+    CREATE INDEX IF NOT EXISTS idx_muted_users_userId
+    ON muted_users (userId);
+
     CREATE TABLE IF NOT EXISTS reader_config (
       key TEXT PRIMARY KEY,
       enabled INTEGER NOT NULL DEFAULT 1,

@@ -199,7 +199,7 @@ router.post("/live-users/mute", asyncHandler(async (req, res) => {
 }));
 
 router.post("/live-users/unmute", asyncHandler(async (req, res) => {
-  await unmuteLiveUser(String(req.body.uniqueId || ""));
+  await unmuteLiveUser(req.body);
   res.status(204).send();
 }));
 

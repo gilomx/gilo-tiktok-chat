@@ -1,7 +1,13 @@
 import { emitAppEvent } from "./socketHub.js";
 import { removeQueuedMessagesBySender } from "./queueService.js";
 import { normalizeText } from "../utils/text.js";
-import { getMutedUserByUniqueId, listMutedUsers, setMutedUserState, upsertMutedUser } from "./sqliteStore.js";
+import {
+  getMutedUserByUniqueId,
+  getMutedUserByUserId,
+  listMutedUsers,
+  setMutedUserState,
+  upsertMutedUser
+} from "./sqliteStore.js";
 
 const MAX_USERS = 200;
 let liveUsers = [];
@@ -27,20 +33,29 @@ function rankUsers(users, query) {
 }
 
 async function attachMuteState(users) {
-  const uniqueIds = users.map((user) => user.uniqueId).filter(Boolean);
-  const mutedUsers = listMutedUsers().filter((item) => uniqueIds.includes(item.uniqueId));
-  const mutedSet = new Set(mutedUsers.map((item) => item.uniqueId));
+  const userIds = users.map((user) => String(user.userId || "").trim()).filter(Boolean);
+  const uniqueIds = users.map((user) => String(user.uniqueId || "").trim()).filter(Boolean);
+  const mutedUsers = listMutedUsers().filter(
+    (item) =>
+      (item.userId && userIds.includes(item.userId))
+      || (item.uniqueId && uniqueIds.includes(item.uniqueId))
+  );
+  const mutedUserIdSet = new Set(mutedUsers.map((item) => item.userId).filter(Boolean));
+  const mutedUniqueIdSet = new Set(mutedUsers.map((item) => item.uniqueId).filter(Boolean));
   return users.map((user) => ({
     ...user,
-    muted: mutedSet.has(user.uniqueId)
+    muted:
+      (user.userId && mutedUserIdSet.has(user.userId))
+      || (user.uniqueId && mutedUniqueIdSet.has(user.uniqueId))
   }));
 }
 
 export async function rememberLiveUser(sender) {
-  if (!sender?.uniqueId) {
+  if (!sender?.uniqueId && !sender?.userId) {
     return;
   }
 
+  const stableKey = String(sender.userId || sender.uniqueId || "").trim();
   const nextUser = {
     userId: sender.userId || "",
     uniqueId: sender.uniqueId,
@@ -51,8 +66,26 @@ export async function rememberLiveUser(sender) {
 
   liveUsers = [
     nextUser,
-    ...liveUsers.filter((user) => user.uniqueId !== nextUser.uniqueId)
+    ...liveUsers.filter(
+      (user) => String(user.userId || user.uniqueId || "").trim() !== stableKey
+    )
   ].slice(0, MAX_USERS);
+
+  const existingMutedUser = sender.userId
+    ? getMutedUserByUserId(sender.userId) || getMutedUserByUniqueId(sender.uniqueId)
+    : getMutedUserByUniqueId(sender.uniqueId);
+
+  if (existingMutedUser) {
+    upsertMutedUser({
+      userId: sender.userId || existingMutedUser.userId || "",
+      uniqueId: sender.uniqueId || existingMutedUser.uniqueId || "",
+      normalizedUniqueId: normalizeText(sender.uniqueId || existingMutedUser.uniqueId || ""),
+      nickname: sender.nickname || existingMutedUser.nickname || sender.uniqueId || "",
+      normalizedNickname: normalizeText(sender.nickname || existingMutedUser.nickname || sender.uniqueId || ""),
+      profilePictureUrl: sender.profilePictureUrl || existingMutedUser.profilePictureUrl || "",
+      muted: true
+    });
+  }
 
   emitAppEvent("live:users-updated", await getRecentLiveUsers());
 }
@@ -84,12 +117,13 @@ export async function searchMutedUsers(query, limit = 15) {
 
 export async function muteLiveUser(sender) {
   const uniqueId = String(sender?.uniqueId || "").trim();
-  if (!uniqueId) {
-    throw new Error("uniqueId es obligatorio para silenciar");
+  const userId = String(sender?.userId || "").trim();
+  if (!uniqueId && !userId) {
+    throw new Error("userId o uniqueId es obligatorio para silenciar");
   }
 
   upsertMutedUser({
-    userId: sender?.userId || "",
+    userId,
     uniqueId,
     normalizedUniqueId: normalizeText(uniqueId),
     nickname: sender?.nickname || uniqueId,
@@ -98,23 +132,25 @@ export async function muteLiveUser(sender) {
     muted: true
   });
 
-  await removeQueuedMessagesBySender(uniqueId);
+  await removeQueuedMessagesBySender({ userId, uniqueId });
 
   emitAppEvent("live:users-updated", await getRecentLiveUsers());
   emitAppEvent("live:muted-users-updated", await searchMutedUsers(""));
 }
 
-export async function unmuteLiveUser(uniqueId) {
-  setMutedUserState(uniqueId, false);
+export async function unmuteLiveUser(identifier) {
+  setMutedUserState(identifier, false);
 
   emitAppEvent("live:users-updated", await getRecentLiveUsers());
   emitAppEvent("live:muted-users-updated", await searchMutedUsers(""));
 }
 
-export async function isUserMuted(uniqueId) {
-  if (!uniqueId) {
+export async function isUserMuted({ userId = "", uniqueId = "" } = {}) {
+  if (!userId && !uniqueId) {
     return false;
   }
-  const mutedUser = getMutedUserByUniqueId(uniqueId);
+  const mutedUser = userId
+    ? getMutedUserByUserId(userId) || getMutedUserByUniqueId(uniqueId)
+    : getMutedUserByUniqueId(uniqueId);
   return Boolean(mutedUser);
 }
