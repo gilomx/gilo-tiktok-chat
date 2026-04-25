@@ -7,6 +7,50 @@ import previewStickerUrl from "../assets/loco.gif";
 
 const OVERLAY_URL_ACK_KEY = "gilo-overlay-last-acknowledged-slug";
 
+function FooterIcon({ type }) {
+  if (type === "tiktok") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M14.5 3c.5 2 1.7 3.3 3.8 3.9V9c-1.6 0-2.9-.4-4-1.3v7a5.2 5.2 0 1 1-5.2-5.2c.4 0 .8 0 1.2.1v2.2a3 3 0 1 0 1.8 2.9V3z"
+        />
+      </svg>
+    );
+  }
+
+  if (type === "twitch") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M4 3h16v11l-4 4h-4l-2 2H7v-2H4zm2 2v11h3v2l2-2h4l3-3V5zm4 2h2v5h-2zm5 0h2v5h-2z"
+        />
+      </svg>
+    );
+  }
+
+  if (type === "web") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M12 3a9 9 0 1 0 9 9 9 9 0 0 0-9-9m5.7 5h-2.2a13 13 0 0 0-1.1-2.4A7 7 0 0 1 17.7 8M12 5.1c.5 0 1.4 1 2.1 2.9H9.9C10.6 6.1 11.5 5.1 12 5.1M8.6 5.6A13 13 0 0 0 7.5 8H5.3a7 7 0 0 1 3.3-2.4M5 12c0-.3 0-.7.1-1h2.2a15 15 0 0 0 0 2H5.1A7 7 0 0 1 5 12m.3 4h2.2a13 13 0 0 0 1.1 2.4A7 7 0 0 1 5.3 16M12 18.9c-.5 0-1.4-1-2.1-2.9h4.2c-.7 1.9-1.6 2.9-2.1 2.9m2.7-5.9H9.3a12 12 0 0 1 0-2h5.4a12 12 0 0 1 0 2m.7 5.4a13 13 0 0 0 1.1-2.4h2.2a7 7 0 0 1-3.3 2.4M16.7 13a15 15 0 0 0 0-2h2.2c.1.3.1.7.1 1s0 .7-.1 1z"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M18.24 2H21l-6.03 6.9L22 22h-5.4l-4.23-5.52L7.54 22H4.78l6.45-7.37L2 2h5.54l3.82 5.07zm-.97 18h1.53L6.7 3.9H5.06z"
+      />
+    </svg>
+  );
+}
+
 function OverlayPreview({ overlayConfig }) {
   const previewMessage = {
     sender: {
@@ -385,6 +429,7 @@ export default function DashboardPage() {
   const [isGeneratingOverlayUrl, setIsGeneratingOverlayUrl] = useState(false);
   const [showOverlayUrlChangedNotice, setShowOverlayUrlChangedNotice] = useState(false);
   const [dismissedOverlayUrlNotice, setDismissedOverlayUrlNotice] = useState(false);
+  const [emailCopied, setEmailCopied] = useState(false);
   const [isLiveUsersLocked, setIsLiveUsersLocked] = useState(false);
   const [forbiddenPage, setForbiddenPage] = useState(1);
   const [replacementPage, setReplacementPage] = useState(1);
@@ -988,6 +1033,16 @@ export default function DashboardPage() {
 
     refreshLiveUsers();
     refreshMutedUsers();
+  };
+
+  const copyBugEmail = async () => {
+    try {
+      await navigator.clipboard.writeText("ke@gilo.mx");
+      setEmailCopied(true);
+      window.setTimeout(() => setEmailCopied(false), 1800);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const updateQueueSnapshot = (queue) => {
@@ -1719,7 +1774,10 @@ export default function DashboardPage() {
             </div>
             <div className="overlay-settings">
               <p className="helper-copy overlay-helper-copy">
-                Tamano recomendado del overlay: 500x300.
+                Tamaño recomendado del overlay: 500x300.
+              </p>
+              <p className="helper-copy overlay-helper-copy">
+                Recomendamos la URL publica para TikTok Live Studio y la URL privada para OBS.
               </p>
               <div className="overlay-color-grid">
                 <label className="color-setting color-setting-compact">
@@ -2058,6 +2116,58 @@ export default function DashboardPage() {
           gilo.mx
         </a>
       </footer>
+      <div className="footer-socials">
+        <a
+          href="https://www.tiktok.com/@gilo.mx"
+          target="_blank"
+          rel="noreferrer"
+          className="footer-social-link"
+          aria-label="TikTok"
+          title="TikTok"
+        >
+          <span className="footer-social-icon" aria-hidden="true"><FooterIcon type="tiktok" /></span>
+        </a>
+        <a
+          href="https://www.twitch.tv/gilomx"
+          target="_blank"
+          rel="noreferrer"
+          className="footer-social-link"
+          aria-label="Twitch"
+          title="Twitch"
+        >
+          <span className="footer-social-icon" aria-hidden="true"><FooterIcon type="twitch" /></span>
+        </a>
+        <a
+          href="https://gilo.mx"
+          target="_blank"
+          rel="noreferrer"
+          className="footer-social-link"
+          aria-label="Página web"
+          title="Página web"
+        >
+          <span className="footer-social-icon" aria-hidden="true"><FooterIcon type="web" /></span>
+        </a>
+        <a
+          href="https://x.com/gilomxn"
+          target="_blank"
+          rel="noreferrer"
+          className="footer-social-link"
+          aria-label="X"
+          title="X"
+        >
+          <span className="footer-social-icon" aria-hidden="true"><FooterIcon type="x" /></span>
+        </a>
+      </div>
+      <p className="dashboard-bugs">
+        bugs?{" "}
+        <button
+          type="button"
+          className="footer-copy-link"
+          onClick={copyBugEmail}
+        >
+          {emailCopied ? "email copiado" : "ke@gilo.mx"}
+        </button>
+      </p>
       <p className="dashboard-postscript">PD: cain mal</p>
     </main>
   );
