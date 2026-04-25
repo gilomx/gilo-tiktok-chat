@@ -91,6 +91,7 @@ function runSchema() {
       pitch REAL NOT NULL DEFAULT 0,
       volumeGainDb REAL NOT NULL DEFAULT 0,
       modsOnly INTEGER NOT NULL DEFAULT 0,
+      followersOnly INTEGER NOT NULL DEFAULT 0,
       includeUserName INTEGER NOT NULL DEFAULT 1,
       noSpam INTEGER NOT NULL DEFAULT 1,
       blockWeirdChars INTEGER NOT NULL DEFAULT 1,
@@ -132,6 +133,7 @@ function runSchema() {
   `);
 
   ensureColumn("reader_config", "includeUserName", "INTEGER NOT NULL DEFAULT 1");
+  ensureColumn("reader_config", "followersOnly", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn("overlay_config", "nameTextColor", "TEXT NOT NULL DEFAULT '#ffffff'");
   ensureColumn("overlay_config", "handleTextColor", "TEXT NOT NULL DEFAULT '#ffffff'");
   ensureColumn("overlay_config", "messageTextColor", "TEXT NOT NULL DEFAULT '#ffffff'");

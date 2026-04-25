@@ -28,6 +28,7 @@ function parseConfigRow(row) {
     ...row,
     enabled: parseBoolean(row.enabled, true),
     modsOnly: parseBoolean(row.modsOnly, false),
+    followersOnly: parseBoolean(row.followersOnly, false),
     includeUserName: parseBoolean(row.includeUserName, true),
     noSpam: parseBoolean(row.noSpam, true),
     blockWeirdChars: parseBoolean(row.blockWeirdChars, true),
@@ -151,7 +152,7 @@ const upsertOverlayConfigStmt = db.prepare(`
 
 const getReaderConfigStmt = db.prepare(`
   SELECT key, enabled, languageCode, voiceName, speakingRate, pitch, volumeGainDb,
-         modsOnly, includeUserName, noSpam, blockWeirdChars, reduceEmojiSpam, createdAt, updatedAt
+         modsOnly, followersOnly, includeUserName, noSpam, blockWeirdChars, reduceEmojiSpam, createdAt, updatedAt
   FROM reader_config
   WHERE key = ?
 `);
@@ -159,10 +160,10 @@ const getReaderConfigStmt = db.prepare(`
 const upsertReaderConfigStmt = db.prepare(`
   INSERT INTO reader_config (
     key, enabled, languageCode, voiceName, speakingRate, pitch, volumeGainDb,
-    modsOnly, includeUserName, noSpam, blockWeirdChars, reduceEmojiSpam, createdAt, updatedAt
+    modsOnly, followersOnly, includeUserName, noSpam, blockWeirdChars, reduceEmojiSpam, createdAt, updatedAt
   ) VALUES (
     @key, @enabled, @languageCode, @voiceName, @speakingRate, @pitch, @volumeGainDb,
-    @modsOnly, @includeUserName, @noSpam, @blockWeirdChars, @reduceEmojiSpam, @createdAt, @updatedAt
+    @modsOnly, @followersOnly, @includeUserName, @noSpam, @blockWeirdChars, @reduceEmojiSpam, @createdAt, @updatedAt
   )
   ON CONFLICT(key) DO UPDATE SET
     enabled = excluded.enabled,
@@ -172,6 +173,7 @@ const upsertReaderConfigStmt = db.prepare(`
     pitch = excluded.pitch,
     volumeGainDb = excluded.volumeGainDb,
     modsOnly = excluded.modsOnly,
+    followersOnly = excluded.followersOnly,
     includeUserName = excluded.includeUserName,
     noSpam = excluded.noSpam,
     blockWeirdChars = excluded.blockWeirdChars,
@@ -330,6 +332,7 @@ export function upsertReaderConfigRow(payload) {
     ...payload,
     enabled: toIntegerBoolean(payload.enabled),
     modsOnly: toIntegerBoolean(payload.modsOnly),
+    followersOnly: toIntegerBoolean(payload.followersOnly),
     includeUserName: toIntegerBoolean(payload.includeUserName),
     noSpam: toIntegerBoolean(payload.noSpam),
     blockWeirdChars: toIntegerBoolean(payload.blockWeirdChars),

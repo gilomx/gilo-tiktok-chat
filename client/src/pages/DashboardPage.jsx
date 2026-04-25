@@ -279,6 +279,7 @@ export default function DashboardPage() {
       pitch: 0,
       volumeGainDb: 0,
       modsOnly: false,
+      followersOnly: false,
       includeUserName: true,
       noSpam: true,
       blockWeirdChars: true,
@@ -974,19 +975,13 @@ export default function DashboardPage() {
             <span>En vivo</span>
             <strong>{summary.liveStats?.viewerCount ?? 0}</strong>
           </div>
-          <div className="stat-card">
+          <div className="stat-card stat-card-queue">
             <span>En cola</span>
             <strong>{queuedTotal}</strong>
           </div>
-          <div className="stat-card">
+          <div className={`stat-card ${summary.queue.paused ? "stat-card-paused" : "stat-card-active"}`}>
             <span>Estado</span>
             <strong>{summary.queue.paused ? "Pausado" : "Activo"}</strong>
-          </div>
-          <div className="stat-card">
-            <span>Overlay</span>
-            <a href="/overlay" target="_blank" rel="noreferrer">
-              Abrir
-            </a>
           </div>
         </div>
       </section>
@@ -1120,6 +1115,20 @@ export default function DashboardPage() {
                   <label className="reader-mini-check">
                     <input
                       type="checkbox"
+                      checked={Boolean(summary.readerConfig.followersOnly)}
+                      onChange={(e) =>
+                        updateReaderConfigField("followersOnly", e.target.checked)
+                      }
+                      title="El lector leera mensajes de seguidores. Si un mod no es seguidor, igual se leera."
+                    />
+                    <span title="El lector leera mensajes de seguidores. Si un mod no es seguidor, igual se leera.">
+                      Solo seguidores
+                    </span>
+                  </label>
+
+                  <label className="reader-mini-check">
+                    <input
+                      type="checkbox"
                       checked={Boolean(summary.readerConfig.includeUserName)}
                       onChange={(e) =>
                         updateReaderConfigField("includeUserName", e.target.checked)
@@ -1130,7 +1139,9 @@ export default function DashboardPage() {
                       Leer nombre del usuario
                     </span>
                   </label>
+                </div>
 
+                <div className="reader-checks-line reader-checks-line-secondary">
                   <label className="reader-mini-check">
                     <input
                       type="checkbox"
@@ -1142,9 +1153,7 @@ export default function DashboardPage() {
                     />
                     <span title="Si hay un mensaje de un usuario en el reproductor, no podra enviar exactamente el mismo hasta que este haya sido leido.">No spam</span>
                   </label>
-                </div>
 
-                <div className="reader-checks-line reader-checks-line-secondary">
                   {showSpanishCharacterFilter && (
                     <label className="reader-mini-check">
                       <input

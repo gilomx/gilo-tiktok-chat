@@ -75,6 +75,7 @@ function pickUser(data = {}) {
     uniqueId: uniqueId || "",
     nickname: nickname || "",
     profilePictureUrl: profilePictureUrl || "",
+    followRole: Number(firstDefined(data?.followRole, directUser.followRole, user.followRole, user.follow_role) || 0),
     isModerator: Boolean(
       firstDefined(
         data?.isModerator,
@@ -133,6 +134,16 @@ async function handleChatMessage(rawEvent) {
   }
 
   if (!muted && queueStatus === "queued" && readerConfig.modsOnly && !sender.isModerator) {
+    queueStatus = "skipped";
+  }
+
+  if (
+    !muted &&
+    queueStatus === "queued" &&
+    readerConfig.followersOnly &&
+    !sender.isModerator &&
+    Number(sender.followRole || 0) < 1
+  ) {
     queueStatus = "skipped";
   }
 

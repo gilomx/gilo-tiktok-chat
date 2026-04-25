@@ -13,6 +13,7 @@ const DEFAULT_READER_CONFIG = {
   pitch: 0,
   volumeGainDb: 0,
   modsOnly: false,
+  followersOnly: false,
   includeUserName: true,
   noSpam: true,
   blockWeirdChars: true,
@@ -242,6 +243,10 @@ async function buildReaderConfigPayload(config) {
       16
     ),
     modsOnly: normalizeBoolean(config?.modsOnly, DEFAULT_READER_CONFIG.modsOnly),
+    followersOnly: normalizeBoolean(
+      config?.followersOnly,
+      DEFAULT_READER_CONFIG.followersOnly
+    ),
     includeUserName: normalizeBoolean(
       config?.includeUserName,
       DEFAULT_READER_CONFIG.includeUserName

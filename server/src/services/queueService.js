@@ -188,6 +188,15 @@ export async function reanalyzeQueuedMessages(readerConfig = {}) {
       continue;
     }
 
+    if (
+      readerConfig.followersOnly &&
+      !message.sender?.isModerator &&
+      Number(message.sender?.followRole || 0) < 1
+    ) {
+      messagesToRemove.push(message._id);
+      continue;
+    }
+
     if (readerConfig.noSpam) {
       const dedupeKey = `${message.sender?.uniqueId || ""}::${message.originalMessage || ""}`;
       if (seenMessages.has(dedupeKey)) {
