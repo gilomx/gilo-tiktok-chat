@@ -5,6 +5,8 @@ import QueuePlayer from "../components/QueuePlayer";
 import StickerMessage from "../components/StickerMessage";
 import previewStickerUrl from "../assets/loco.gif";
 
+const OVERLAY_URL_ACK_KEY = "gilo-overlay-last-acknowledged-slug";
+
 function OverlayPreview({ overlayConfig }) {
   const previewMessage = {
     sender: {
@@ -378,8 +380,11 @@ export default function DashboardPage() {
   const [overlaySoftTopFade, setOverlaySoftTopFade] = useState(true);
   const [overlayFixedBubbleWidth, setOverlayFixedBubbleWidth] = useState(false);
   const [overlayAlignment, setOverlayAlignment] = useState("right");
-  const [overlayUrlCopied, setOverlayUrlCopied] = useState(false);
+  const [overlayPublicUrlCopied, setOverlayPublicUrlCopied] = useState(false);
+  const [overlayPrivateUrlCopied, setOverlayPrivateUrlCopied] = useState(false);
   const [isGeneratingOverlayUrl, setIsGeneratingOverlayUrl] = useState(false);
+  const [showOverlayUrlChangedNotice, setShowOverlayUrlChangedNotice] = useState(false);
+  const [dismissedOverlayUrlNotice, setDismissedOverlayUrlNotice] = useState(false);
   const [isLiveUsersLocked, setIsLiveUsersLocked] = useState(false);
   const [forbiddenPage, setForbiddenPage] = useState(1);
   const [replacementPage, setReplacementPage] = useState(1);
@@ -482,6 +487,27 @@ export default function DashboardPage() {
     summary.publicOverlay?.relayLastEventSentAt,
     summary.publicOverlay?.relayLastError
   ]);
+
+  useEffect(() => {
+    const currentSlug = String(summary.publicOverlay?.overlaySlug || "").trim();
+    if (!currentSlug) {
+      return;
+    }
+
+    const acknowledgedSlug = window.localStorage.getItem(OVERLAY_URL_ACK_KEY);
+
+    if (!acknowledgedSlug) {
+      window.localStorage.setItem(OVERLAY_URL_ACK_KEY, currentSlug);
+      setShowOverlayUrlChangedNotice(false);
+      return;
+    }
+
+    setShowOverlayUrlChangedNotice(acknowledgedSlug !== currentSlug);
+  }, [summary.publicOverlay?.overlaySlug]);
+
+  const forceOverlayUrlNoticePreview = false;
+  const shouldRenderOverlayUrlNotice = !dismissedOverlayUrlNotice
+    && (forceOverlayUrlNoticePreview || showOverlayUrlChangedNotice);
 
   useEffect(() => {
     liveUsersSearchRef.current = search.liveUsers;
@@ -885,13 +911,34 @@ export default function DashboardPage() {
     });
   };
 
-  const copyOverlayUrl = async () => {
-    const overlayUrl = summary.publicOverlay?.publicUrl
-      || `${window.location.origin}${summary.publicOverlay?.localPath || "/overlay"}`;
+  const copyPrivateOverlayUrl = async () => {
+    const overlayUrl = `${window.location.origin}${summary.publicOverlay?.localPath || "/overlay"}`;
     try {
       await navigator.clipboard.writeText(overlayUrl);
-      setOverlayUrlCopied(true);
-      window.setTimeout(() => setOverlayUrlCopied(false), 1800);
+      if (summary.publicOverlay?.overlaySlug) {
+        window.localStorage.setItem(OVERLAY_URL_ACK_KEY, summary.publicOverlay.overlaySlug);
+        setShowOverlayUrlChangedNotice(false);
+      }
+      setOverlayPrivateUrlCopied(true);
+      window.setTimeout(() => setOverlayPrivateUrlCopied(false), 1800);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const copyPublicOverlayUrl = async () => {
+    if (!summary.publicOverlay?.publicUrl) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(summary.publicOverlay.publicUrl);
+      if (summary.publicOverlay?.overlaySlug) {
+        window.localStorage.setItem(OVERLAY_URL_ACK_KEY, summary.publicOverlay.overlaySlug);
+        setShowOverlayUrlChangedNotice(false);
+      }
+      setOverlayPublicUrlCopied(true);
+      window.setTimeout(() => setOverlayPublicUrlCopied(false), 1800);
     } catch (error) {
       console.error(error);
     }
@@ -918,7 +965,8 @@ export default function DashboardPage() {
         ...current,
         publicOverlay: response.publicOverlay || current.publicOverlay
       }));
-      setOverlayUrlCopied(false);
+      setOverlayPublicUrlCopied(false);
+      setOverlayPrivateUrlCopied(false);
       await refreshSummary();
     } catch (error) {
       console.error("[Overlay URL] no se pudo generar una nueva identidad", error);
@@ -1061,6 +1109,26 @@ export default function DashboardPage() {
           </div>
         </div>
       </section>
+
+      <div
+        className={`dashboard-alert ${shouldRenderOverlayUrlNotice ? "dashboard-alert-open" : "dashboard-alert-closed"}`}
+        aria-hidden={!shouldRenderOverlayUrlNotice}
+      >
+        <div className="dashboard-alert-content">
+          <p>
+            La URL del overlay cambio. Actualizala en OBS o Live Studio para que siga funcionando.
+          </p>
+          <button
+            type="button"
+            className="dashboard-alert-close"
+            aria-label="Cerrar aviso"
+            title="Cerrar aviso"
+            onClick={() => setDismissedOverlayUrlNotice(true)}
+          >
+            {"\u00D7"}
+          </button>
+        </div>
+      </div>
 
       <section className="dashboard-columns">
         <section className="left-column">
@@ -1620,66 +1688,39 @@ export default function DashboardPage() {
             <div className="panel-header">
               <h2>Personalizar overlay</h2>
               <div className="button-inline-row">
-                <button
-                  type="button"
-                  className="button-secondary button-compact"
-                  onClick={copyOverlayUrl}
-                >
-                  {overlayUrlCopied ? "URL copiada" : "Copiar URL"}
-                </button>
-                <button
-                  type="button"
-                  className="button-secondary button-compact"
-                  onClick={generateNewOverlayUrl}
-                  disabled={isGeneratingOverlayUrl}
-                >
-                  {isGeneratingOverlayUrl ? "Generando..." : "Nueva URL"}
-                </button>
+                {summary.publicOverlay?.identitySource === "remote" ? (
+                  <>
+                    <button
+                      type="button"
+                      className="button-secondary button-compact"
+                      onClick={copyPublicOverlayUrl}
+                    >
+                      {overlayPublicUrlCopied ? "URL publica copiada" : "Copiar URL publica"}
+                    </button>
+                    <button
+                      type="button"
+                      className="button-secondary button-compact"
+                      onClick={copyPrivateOverlayUrl}
+                    >
+                      {overlayPrivateUrlCopied ? "URL privada copiada" : "Copiar URL privada"}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="button-secondary button-compact"
+                    onClick={generateNewOverlayUrl}
+                    disabled={isGeneratingOverlayUrl}
+                  >
+                    {isGeneratingOverlayUrl ? "Generando..." : "Generar URL"}
+                  </button>
+                )}
               </div>
             </div>
             <div className="overlay-settings">
               <p className="helper-copy overlay-helper-copy">
                 Tamano recomendado del overlay: 500x300.
               </p>
-              <p className="helper-copy overlay-helper-copy">
-                URL del overlay: <code>{summary.publicOverlay?.publicUrl || `${window.location.origin}${summary.publicOverlay?.localPath || "/overlay"}`}</code>
-              </p>
-              <p className="helper-copy overlay-helper-copy">
-                Instalacion: <code>{summary.publicOverlay?.overlaySlug || "pendiente"}</code>
-              </p>
-              <p className="helper-copy overlay-helper-copy">
-                Identidad: {summary.publicOverlay?.identitySource === "remote" ? "generada por servidor" : "local de respaldo"}
-              </p>
-              <p className="helper-copy overlay-helper-copy">
-                Relay: {summary.publicOverlay?.relayConfigured
-                  ? (summary.publicOverlay?.relayConnected ? "conectado" : "configurado pero sin conectar")
-                  : "sin configurar"}
-              </p>
-              {summary.publicOverlay?.relayLastEventType && (
-                <p className="helper-copy overlay-helper-copy">
-                  Ultimo envio: <code>{summary.publicOverlay.relayLastEventType}</code>{summary.publicOverlay?.relayLastEventSentAt ? ` a las ${new Date(summary.publicOverlay.relayLastEventSentAt).toLocaleTimeString()}` : ""}
-                </p>
-              )}
-              {!summary.publicOverlay?.registrationConfigured && (
-                <p className="helper-copy overlay-helper-copy">
-                  Define <code>OVERLAY_REGISTRATION_URL</code> para que nuevas instalaciones reciban su identidad desde tu servidor.
-                </p>
-              )}
-              {!summary.publicOverlay?.revocationConfigured && (
-                <p className="helper-copy overlay-helper-copy">
-                  No hay endpoint de revocacion configurado. La nueva URL igual se generara, pero la identidad anterior podria seguir existiendo en el servidor remoto.
-                </p>
-              )}
-              {!summary.publicOverlay?.publicBaseUrlConfigured && (
-                <p className="helper-copy overlay-helper-copy">
-                  Define <code>PUBLIC_OVERLAY_BASE_URL</code> y <code>OVERLAY_RELAY_URL</code> para que esta URL apunte a tu dominio en lugar de localhost.
-                </p>
-              )}
-              {summary.publicOverlay?.relayLastError && (
-                <p className="helper-copy overlay-helper-copy">
-                  Error del relay: {summary.publicOverlay.relayLastError}
-                </p>
-              )}
               <div className="overlay-color-grid">
                 <label className="color-setting color-setting-compact">
                   <span>Background</span>

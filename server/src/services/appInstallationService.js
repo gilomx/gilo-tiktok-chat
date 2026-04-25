@@ -99,11 +99,9 @@ async function revokeRemoteInstallationRecord(installation) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      client: "gilo-tiktok-chat",
       installationId: installation.installationId,
       overlaySlug: installation.overlaySlug,
       relaySecret: installation.relaySecret,
-      revokedAt: new Date().toISOString()
     })
   });
 

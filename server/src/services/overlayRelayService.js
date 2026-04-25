@@ -1,6 +1,10 @@
 import WebSocket from "ws";
 import { env } from "../config/env.js";
-import { getInstallationPublicInfo, getInstallationRelayCredentials } from "./appInstallationService.js";
+import {
+  getInstallationPublicInfo,
+  getInstallationRelayCredentials,
+  regenerateInstallationRecord
+} from "./appInstallationService.js";
 import { getOverlaySnapshot } from "./overlaySnapshotService.js";
 import { emitUiEvent, onAppEvent } from "./socketHub.js";
 
@@ -9,6 +13,7 @@ const RECONNECT_DELAY_MS = 5000;
 let relaySocket = null;
 let relayListenerCleanup = null;
 let reconnectTimer = null;
+let repairPromise = null;
 let relayStatus = {
   configured: Boolean(env.overlayRelayUrl),
   connected: false,
@@ -92,6 +97,90 @@ function scheduleReconnect() {
     reconnectTimer = null;
     connectOverlayRelay();
   }, RECONNECT_DELAY_MS);
+}
+
+function containsInvalidIdentityHint(value) {
+  const normalized = String(value || "").toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  return [
+    "invalid installation",
+    "installation not found",
+    "unknown installation",
+    "invalid identity",
+    "identity not found",
+    "unknown identity",
+    "invalid overlay",
+    "overlay not found",
+    "unknown overlay",
+    "invalid slug",
+    "unknown slug",
+    "invalid relay secret",
+    "relay secret mismatch",
+    "installation_invalid",
+    "installation_not_found",
+    "identity_invalid",
+    "identity_not_found",
+    "overlay_not_found",
+    "slug_not_found",
+    "unknown_installation",
+    "unknown_identity",
+    "unknown_overlay"
+  ].some((hint) => normalized.includes(hint));
+}
+
+function isInvalidInstallationMessage(message) {
+  if (!message || typeof message !== "object") {
+    return false;
+  }
+
+  const candidateValues = [
+    message.type,
+    message.code,
+    message.reason,
+    message.error,
+    message.message,
+    message?.payload?.code,
+    message?.payload?.reason,
+    message?.payload?.error,
+    message?.payload?.message
+  ];
+
+  return candidateValues.some(containsInvalidIdentityHint);
+}
+
+async function autoRepairInstallation(trigger = "unknown") {
+  if (repairPromise) {
+    return repairPromise;
+  }
+
+  repairPromise = (async () => {
+    try {
+      console.warn(`[Overlay relay] identidad invalida detectada (${trigger}). Regenerando instalacion...`);
+      teardownRelaySocket();
+      await regenerateInstallationRecord();
+      relayStatus = {
+        ...relayStatus,
+        lastError: ""
+      };
+      broadcastRelayStatus();
+      connectOverlayRelay();
+    } catch (error) {
+      relayStatus = {
+        ...relayStatus,
+        lastError: error.message || "No se pudo regenerar la instalacion del overlay."
+      };
+      broadcastRelayStatus();
+      console.error("[Overlay relay] no se pudo autoreparar la instalacion.", error);
+      scheduleReconnect();
+    } finally {
+      repairPromise = null;
+    }
+  })();
+
+  return repairPromise;
 }
 
 async function sendRegistration() {
@@ -192,6 +281,11 @@ export function connectOverlayRelay() {
   relaySocket.on("message", async (rawBuffer) => {
     try {
       const message = JSON.parse(String(rawBuffer));
+
+      if (isInvalidInstallationMessage(message)) {
+        await autoRepairInstallation(String(message?.type || message?.code || message?.reason || "server-message"));
+        return;
+      }
 
       if (message?.type === "overlay.snapshot:request") {
         await sendSnapshot("requested");

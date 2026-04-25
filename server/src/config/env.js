@@ -7,6 +7,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const serverDir = path.resolve(__dirname, "..", "..");
 const rootDir = path.resolve(serverDir, "..");
+const DEFAULT_PUBLIC_OVERLAY_BASE_URL = "https://overlay.gilo.mx";
+const DEFAULT_OVERLAY_REGISTRATION_URL = "https://overlay.gilo.mx/api/installations/register";
+const DEFAULT_OVERLAY_REVOCATION_URL = "https://overlay.gilo.mx/api/installations/revoke";
+const DEFAULT_OVERLAY_RELAY_URL = "wss://overlay.gilo.mx/api/overlay-relay";
 
 function deriveOverlayRevocationUrl(registrationUrl) {
   const candidate = String(registrationUrl || "").trim();
@@ -39,10 +43,13 @@ export const env = {
   sqlitePath: path.resolve(rootDir, process.env.SQLITE_PATH || "server/data/app.db"),
   port: Number(process.env.PORT || 3001),
   clientUrl: process.env.CLIENT_URL || "http://localhost:5173",
-  publicOverlayBaseUrl: process.env.PUBLIC_OVERLAY_BASE_URL || "",
-  overlayRegistrationUrl: process.env.OVERLAY_REGISTRATION_URL || "",
-  overlayRevocationUrl: process.env.OVERLAY_REVOCATION_URL || deriveOverlayRevocationUrl(process.env.OVERLAY_REGISTRATION_URL || ""),
-  overlayRelayUrl: process.env.OVERLAY_RELAY_URL || "",
+  publicOverlayBaseUrl: process.env.PUBLIC_OVERLAY_BASE_URL || DEFAULT_PUBLIC_OVERLAY_BASE_URL,
+  overlayRegistrationUrl: process.env.OVERLAY_REGISTRATION_URL || DEFAULT_OVERLAY_REGISTRATION_URL,
+  overlayRevocationUrl:
+    process.env.OVERLAY_REVOCATION_URL ||
+    DEFAULT_OVERLAY_REVOCATION_URL ||
+    deriveOverlayRevocationUrl(process.env.OVERLAY_REGISTRATION_URL || DEFAULT_OVERLAY_REGISTRATION_URL),
+  overlayRelayUrl: process.env.OVERLAY_RELAY_URL || DEFAULT_OVERLAY_RELAY_URL,
   tiktokWsUrl: process.env.TIKTOK_WS_URL || "ws://localhost:21213/",
   uploadDir: process.env.UPLOAD_DIR || "server/uploads",
   googleCredentialsPath: (() => {

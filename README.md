@@ -43,15 +43,12 @@ Variables principales en [C:/Users/mgtgi/dev/gilo-tiktok-chat/.env.example](C:/U
 
 - `PORT`: puerto del backend
 - `CLIENT_URL`: URL del frontend en desarrollo
-- `PUBLIC_OVERLAY_BASE_URL`: base publica donde vive tu pagina Next.js, por ejemplo `https://gilo.mx`
-- En tu caso: `https://overlay.gilo.mx`
-- `OVERLAY_REGISTRATION_URL`: endpoint HTTP que crea una identidad unica y la devuelve al cliente en el primer arranque
-- `OVERLAY_REVOCATION_URL`: endpoint HTTP opcional para invalidar una identidad anterior cuando se genera una nueva URL
-- `OVERLAY_RELAY_URL`: WebSocket del relay que recibira el estado del overlay, por ejemplo `wss://gilo.mx/api/overlay-relay`
 - `SQLITE_PATH`: ruta de la base SQLite
 - `TIKTOK_WS_URL`: WebSocket local de eventos
 - `UPLOAD_DIR`: carpeta para stickers subidos
 - `GOOGLE_APPLICATION_CREDENTIALS`: opcional; si esta vacio, el JSON de Google puede cargarse desde el dashboard
+
+Las URLs publicas del overlay (`overlay.gilo.mx`) ya vienen definidas en el codigo para no pedirle esa configuracion al usuario final.
 
 ## Google TTS
 
