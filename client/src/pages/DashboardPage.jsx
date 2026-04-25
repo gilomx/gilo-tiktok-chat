@@ -1855,21 +1855,6 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <section className="panel">
-            <div className="panel-header">
-              <h2>Ultimos mensajes</h2>
-            </div>
-            <div className="message-feed">
-              {summary.recentMessages.map((message) => (
-                <ChatBubbleCard
-                  key={message._id}
-                  message={message}
-                  showOriginal
-                  overlayConfig={summary.overlayConfig}
-                />
-              ))}
-            </div>
-          </section>
         </section>
       </section>
 
