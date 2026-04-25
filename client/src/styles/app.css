@@ -691,6 +691,22 @@ small,
   line-height: 1.4;
 }
 
+.sticker-helper-copy {
+  margin: 0.85rem 0 0;
+  font-size: 0.74rem;
+}
+
+.sticker-helper-link {
+  color: #ff6b8f;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.sticker-helper-link:hover {
+  color: #ff93ad;
+  text-decoration: underline;
+}
+
 .pagination-row {
   display: flex;
   align-items: center;

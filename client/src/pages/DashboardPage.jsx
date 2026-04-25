@@ -1439,11 +1439,24 @@ export default function DashboardPage() {
               setSearch((current) => ({ ...current, stickers: value }))
             }
             footer={
-              <Pagination
-                page={summary.stickers.page}
-                totalPages={summary.stickers.totalPages}
-                onChange={setStickerPage}
-              />
+              <>
+                <Pagination
+                  page={summary.stickers.page}
+                  totalPages={summary.stickers.totalPages}
+                  onChange={setStickerPage}
+                />
+                <p className="helper-copy sticker-helper-copy">
+                  Si no sabes que poner te recomiendo{" "}
+                  <a
+                    href="https://giphy.com/gilomx/gilomx-chat"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="sticker-helper-link"
+                  >
+                    mis stickersitos
+                  </a>
+                </p>
+              </>
             }
             renderItem={(item) => (
               <article key={item._id} className="chip-item chip-item-sticker chip-item-sticker-tone">
