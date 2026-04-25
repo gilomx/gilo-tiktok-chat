@@ -151,6 +151,8 @@ function SearchList({
   footer = null,
   panelProps = {}
 }) {
+  const safeItems = Array.isArray(items) ? items : [];
+
   return (
     <section className="panel" {...panelProps}>
       <div className="panel-header">
@@ -163,7 +165,7 @@ function SearchList({
         />
       </div>
       {children}
-      <div className="list">{items.map(renderItem)}</div>
+      <div className="list">{safeItems.map(renderItem)}</div>
       {footer}
     </section>
   );
@@ -366,7 +368,7 @@ export default function DashboardPage() {
   const [stickerPreviewUrl, setStickerPreviewUrl] = useState("");
   const liveUsersSearchRef = useRef("");
   const mutedUsersSearchRef = useRef("");
-  const pendingLiveUsersRef = useRef(null);
+  const liveUsersLockedRef = useRef(false);
 
   const refreshSummary = async () => {
     const data = await http("/api/dashboard/summary");
@@ -449,6 +451,10 @@ export default function DashboardPage() {
   }, [search.mutedUsers]);
 
   useEffect(() => {
+    liveUsersLockedRef.current = isLiveUsersLocked;
+  }, [isLiveUsersLocked]);
+
+  useEffect(() => {
     if (!socket) return undefined;
 
     const handleQueue = (queue) => {
@@ -492,11 +498,9 @@ export default function DashboardPage() {
       setSummary((current) => ({ ...current, liveStats }));
     };
     const handleLiveUsers = (liveUsers) => {
-      if (liveUsersSearchRef.current.trim() || isLiveUsersLocked) {
-        pendingLiveUsersRef.current = liveUsers;
+      if (liveUsersSearchRef.current.trim() || liveUsersLockedRef.current) {
         return;
       }
-      pendingLiveUsersRef.current = null;
       setSummary((current) => ({ ...current, liveUsers }));
     };
     const handleMutedUsers = (mutedUsers) => {
@@ -526,20 +530,13 @@ export default function DashboardPage() {
       socket.off("live:muted-users-updated", handleMutedUsers);
       socket.off("reader:config-updated", handleReaderConfig);
     };
-  }, [socket, isLiveUsersLocked]);
+  }, [socket]);
 
   useEffect(() => {
     if (isLiveUsersLocked || liveUsersSearchRef.current.trim()) {
       return;
     }
-
-    if (pendingLiveUsersRef.current) {
-      setSummary((current) => ({
-        ...current,
-        liveUsers: pendingLiveUsersRef.current
-      }));
-      pendingLiveUsersRef.current = null;
-    }
+    refreshLiveUsers();
   }, [isLiveUsersLocked, search.liveUsers]);
 
   useEffect(() => {
@@ -866,20 +863,6 @@ export default function DashboardPage() {
 
     refreshLiveUsers();
     refreshMutedUsers();
-  };
-
-  const lockLiveUsersPanel = () => {
-    setIsLiveUsersLocked(true);
-  };
-
-  const unlockLiveUsersPanel = () => {
-    setIsLiveUsersLocked(false);
-  };
-
-  const handleLiveUsersPanelBlur = (event) => {
-    if (!event.currentTarget.contains(event.relatedTarget)) {
-      unlockLiveUsersPanel();
-    }
   };
 
   const updateQueueSnapshot = (queue) => {
@@ -1258,13 +1241,11 @@ export default function DashboardPage() {
             items={summary.liveUsers}
             search={search.liveUsers}
             setSearch={(value) =>
-              setSearch((current) => ({ ...current, liveUsers: value }))
+            setSearch((current) => ({ ...current, liveUsers: value }))
             }
             panelProps={{
-              onMouseEnter: lockLiveUsersPanel,
-              onMouseLeave: unlockLiveUsersPanel,
-              onFocusCapture: lockLiveUsersPanel,
-              onBlurCapture: handleLiveUsersPanelBlur
+              onMouseEnter: () => setIsLiveUsersLocked(true),
+              onMouseLeave: () => setIsLiveUsersLocked(false)
             }}
             renderItem={(user) => (
               <article key={user.uniqueId} className="chip-item chip-item-user">
