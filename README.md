@@ -90,7 +90,7 @@ Se mantiene solo en memoria del backend:
 
 El proyecto ya puede generar una identidad estable por instalacion y preparar una URL del tipo:
 
-- `https://overlay.gilo.mx/<overlaySlug>`
+- `https://overlay.gilo.mx/chat/<overlaySlug>`
 
 La app local:
 
@@ -124,7 +124,7 @@ Tu servidor Next.js o tu backend del dominio necesita:
 - generar `overlaySlug` y `relaySecret` unicos del lado servidor
 - aceptar la conexion del cliente local usando `overlaySlug` + `relaySecret`
 - guardar el ultimo snapshot por `overlaySlug`
-- retransmitir eventos al overlay web en `overlay.gilo.mx/[slug]`
+- retransmitir eventos al overlay web en `overlay.gilo.mx/chat/[slug]`
 - invalidar una identidad anterior cuando el cliente pida una nueva URL
 
 Con eso TikTok Live Studio solo carga la URL publica y el cliente local sigue siendo quien escucha TikTok/TTS/moderacion.

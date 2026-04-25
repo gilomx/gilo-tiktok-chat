@@ -198,7 +198,7 @@ export function getInstallationPublicInfo(relayStatus = {}) {
   const publicBaseUrl = normalizeBaseUrl(env.publicOverlayBaseUrl);
   const localPath = `/overlay/${installation.overlaySlug}`;
   const publicUrl = publicBaseUrl
-    ? `${publicBaseUrl}/${installation.overlaySlug}`
+    ? `${publicBaseUrl}/chat/${installation.overlaySlug}`
     : "";
 
   return {

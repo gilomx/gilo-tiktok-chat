@@ -5,7 +5,7 @@ import QueuePlayer from "../components/QueuePlayer";
 import StickerMessage from "../components/StickerMessage";
 import previewStickerUrl from "../assets/loco.gif";
 
-const OVERLAY_URL_ACK_KEY = "gilo-overlay-last-acknowledged-slug";
+const OVERLAY_URL_ACK_KEY = "gilo-overlay-last-acknowledged-public-url";
 
 function FooterIcon({ type }) {
   if (type === "tiktok") {
@@ -534,21 +534,21 @@ export default function DashboardPage() {
   ]);
 
   useEffect(() => {
-    const currentSlug = String(summary.publicOverlay?.overlaySlug || "").trim();
-    if (!currentSlug) {
+    const currentPublicUrl = String(summary.publicOverlay?.publicUrl || "").trim();
+    if (!currentPublicUrl) {
       return;
     }
 
-    const acknowledgedSlug = window.localStorage.getItem(OVERLAY_URL_ACK_KEY);
+    const acknowledgedPublicUrl = window.localStorage.getItem(OVERLAY_URL_ACK_KEY);
 
-    if (!acknowledgedSlug) {
-      window.localStorage.setItem(OVERLAY_URL_ACK_KEY, currentSlug);
+    if (!acknowledgedPublicUrl) {
+      window.localStorage.setItem(OVERLAY_URL_ACK_KEY, currentPublicUrl);
       setShowOverlayUrlChangedNotice(false);
       return;
     }
 
-    setShowOverlayUrlChangedNotice(acknowledgedSlug !== currentSlug);
-  }, [summary.publicOverlay?.overlaySlug]);
+    setShowOverlayUrlChangedNotice(acknowledgedPublicUrl !== currentPublicUrl);
+  }, [summary.publicOverlay?.publicUrl]);
 
   const forceOverlayUrlNoticePreview = false;
   const shouldRenderOverlayUrlNotice = !dismissedOverlayUrlNotice
@@ -960,8 +960,8 @@ export default function DashboardPage() {
     const overlayUrl = `${window.location.origin}${summary.publicOverlay?.localPath || "/overlay"}`;
     try {
       await navigator.clipboard.writeText(overlayUrl);
-      if (summary.publicOverlay?.overlaySlug) {
-        window.localStorage.setItem(OVERLAY_URL_ACK_KEY, summary.publicOverlay.overlaySlug);
+      if (summary.publicOverlay?.publicUrl) {
+        window.localStorage.setItem(OVERLAY_URL_ACK_KEY, summary.publicOverlay.publicUrl);
         setShowOverlayUrlChangedNotice(false);
       }
       setOverlayPrivateUrlCopied(true);
@@ -978,8 +978,8 @@ export default function DashboardPage() {
 
     try {
       await navigator.clipboard.writeText(summary.publicOverlay.publicUrl);
-      if (summary.publicOverlay?.overlaySlug) {
-        window.localStorage.setItem(OVERLAY_URL_ACK_KEY, summary.publicOverlay.overlaySlug);
+      if (summary.publicOverlay?.publicUrl) {
+        window.localStorage.setItem(OVERLAY_URL_ACK_KEY, summary.publicOverlay.publicUrl);
         setShowOverlayUrlChangedNotice(false);
       }
       setOverlayPublicUrlCopied(true);
