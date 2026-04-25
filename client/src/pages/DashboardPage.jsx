@@ -1104,71 +1104,75 @@ export default function DashboardPage() {
               </div>
 
               <div className="reader-toolbar-row reader-toolbar-row-checks">
-                <label className="reader-mini-check">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(summary.readerConfig.modsOnly)}
-                    onChange={(e) =>
-                      updateReaderConfigField("modsOnly", e.target.checked)
-                    }
-                    title="El lector leera solo mensajes de los mods."
-                  />
-                  <span title="El lector leera solo mensajes de los mods.">Solo mods</span>
-                </label>
-
-                <label className="reader-mini-check reader-mini-check-break">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(summary.readerConfig.includeUserName)}
-                    onChange={(e) =>
-                      updateReaderConfigField("includeUserName", e.target.checked)
-                    }
-                    title="Si esta activado, el lector dira: usuario dijo: mensaje."
-                  />
-                  <span title="Si esta activado, el lector dira: usuario dijo: mensaje.">
-                    Leer nombre del usuario
-                  </span>
-                </label>
-
-                <label className="reader-mini-check">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(summary.readerConfig.noSpam)}
-                    onChange={(e) =>
-                      updateReaderConfigField("noSpam", e.target.checked)
-                    }
-                    title="Si hay un mensaje de un usuario en el reproductor, no podra enviar exactamente el mismo hasta que este haya sido leido."
-                  />
-                  <span title="Si hay un mensaje de un usuario en el reproductor, no podra enviar exactamente el mismo hasta que este haya sido leido.">No spam</span>
-                </label>
-
-                {showSpanishCharacterFilter && (
+                <div className="reader-checks-line">
                   <label className="reader-mini-check">
                     <input
                       type="checkbox"
-                      checked={Boolean(summary.readerConfig.blockWeirdChars)}
+                      checked={Boolean(summary.readerConfig.modsOnly)}
                       onChange={(e) =>
-                        updateReaderConfigField("blockWeirdChars", e.target.checked)
+                        updateReaderConfigField("modsOnly", e.target.checked)
                       }
-                      title="No permite la lectura de caracteres raros en otros idiomas, para evitar a los groseros y sus copys."
+                      title="El lector leera solo mensajes de los mods."
                     />
-                    <span title="No permite la lectura de caracteres raros en otros idiomas, para evitar a los groseros y sus copys.">Bloquear caracteres raros</span>
+                    <span title="El lector leera solo mensajes de los mods.">Solo mods</span>
                   </label>
-                )}
 
-                <label className="reader-mini-check">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(summary.readerConfig.reduceEmojiSpam)}
-                    onChange={(e) =>
-                      updateReaderConfigField("reduceEmojiSpam", e.target.checked)
-                    }
-                    title="Reduce el spam de emojis: si repiten uno varias veces, lee uno; si mandan varios diferentes juntos, lee hasta tres."
-                  />
-                  <span title="Reduce el spam de emojis: si repiten uno varias veces, lee uno; si mandan varios diferentes juntos, lee hasta tres.">
-                    Leer menos emojis
-                  </span>
-                </label>
+                  <label className="reader-mini-check">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(summary.readerConfig.includeUserName)}
+                      onChange={(e) =>
+                        updateReaderConfigField("includeUserName", e.target.checked)
+                      }
+                      title="Si esta activado, el lector dira: usuario dice: mensaje."
+                    />
+                    <span title="Si esta activado, el lector dira: usuario dice: mensaje.">
+                      Leer nombre del usuario
+                    </span>
+                  </label>
+
+                  <label className="reader-mini-check">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(summary.readerConfig.noSpam)}
+                      onChange={(e) =>
+                        updateReaderConfigField("noSpam", e.target.checked)
+                      }
+                      title="Si hay un mensaje de un usuario en el reproductor, no podra enviar exactamente el mismo hasta que este haya sido leido."
+                    />
+                    <span title="Si hay un mensaje de un usuario en el reproductor, no podra enviar exactamente el mismo hasta que este haya sido leido.">No spam</span>
+                  </label>
+                </div>
+
+                <div className="reader-checks-line reader-checks-line-secondary">
+                  {showSpanishCharacterFilter && (
+                    <label className="reader-mini-check">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(summary.readerConfig.blockWeirdChars)}
+                        onChange={(e) =>
+                          updateReaderConfigField("blockWeirdChars", e.target.checked)
+                        }
+                        title="No permite la lectura de caracteres raros en otros idiomas, para evitar a los groseros y sus copys."
+                      />
+                      <span title="No permite la lectura de caracteres raros en otros idiomas, para evitar a los groseros y sus copys.">Bloquear caracteres raros</span>
+                    </label>
+                  )}
+
+                  <label className="reader-mini-check">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(summary.readerConfig.reduceEmojiSpam)}
+                      onChange={(e) =>
+                        updateReaderConfigField("reduceEmojiSpam", e.target.checked)
+                      }
+                      title="Reduce el spam de emojis: si repiten uno varias veces, lee uno; si mandan varios diferentes juntos, lee hasta tres."
+                    />
+                    <span title="Reduce el spam de emojis: si repiten uno varias veces, lee uno; si mandan varios diferentes juntos, lee hasta tres.">
+                      Leer menos emojis
+                    </span>
+                  </label>
+                </div>
               </div>
 
               <div className="reader-toolbar-row reader-toolbar-row-credentials">

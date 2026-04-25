@@ -919,13 +919,18 @@ small,
 }
 
 .reader-toolbar-row-checks {
-  grid-template-columns: repeat(4, max-content);
-  justify-content: space-between;
-  gap: 0.2rem 0.45rem;
+  display: grid;
+  gap: 0.12rem;
 }
 
-.reader-mini-check-break {
-  grid-column: 1 / -1;
+.reader-checks-line {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, max-content));
+  gap: 0.2rem 0.7rem;
+}
+
+.reader-checks-line-secondary {
+  grid-template-columns: repeat(2, minmax(0, max-content));
 }
 
 .reader-toolbar-row-credentials {
@@ -1270,8 +1275,12 @@ small,
   }
 
   .reader-toolbar-row-checks {
+    gap: 0.24rem;
+  }
+
+  .reader-checks-line,
+  .reader-checks-line-secondary {
     grid-template-columns: 1fr;
-    justify-content: stretch;
   }
 
   .reader-toolbar-row-credentials {
