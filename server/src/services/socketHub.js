@@ -5,6 +5,12 @@ export function registerSocket(io) {
   ioRef = io;
 }
 
+export function emitUiEvent(event, payload) {
+  if (ioRef) {
+    ioRef.emit(event, payload);
+  }
+}
+
 export function onAppEvent(listener) {
   listeners.add(listener);
   return () => {
@@ -13,9 +19,7 @@ export function onAppEvent(listener) {
 }
 
 export function emitAppEvent(event, payload) {
-  if (ioRef) {
-    ioRef.emit(event, payload);
-  }
+  emitUiEvent(event, payload);
 
   for (const listener of listeners) {
     try {

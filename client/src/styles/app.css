@@ -270,6 +270,14 @@ small,
   margin-bottom: 0.85rem;
 }
 
+.button-inline-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .action-row {
   flex-wrap: wrap;
 }

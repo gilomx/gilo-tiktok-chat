@@ -1,10 +1,10 @@
 import express from "express";
 import multer from "multer";
-import { getInstallationPublicInfo } from "../services/appInstallationService.js";
+import { getInstallationPublicInfo, regenerateInstallationRecord } from "../services/appInstallationService.js";
 import { getOverlayConfig, updateOverlayConfig } from "../services/overlayConfigService.js";
 import { getLiveStats } from "../services/liveStatsService.js";
 import { getRecentMessages } from "../services/messageStoreService.js";
-import { getOverlayRelayStatus } from "../services/overlayRelayService.js";
+import { getOverlayRelayStatus, restartOverlayRelay } from "../services/overlayRelayService.js";
 import { getRecentLiveUsers, muteLiveUser, searchLiveUsers, searchMutedUsers, unmuteLiveUser } from "../services/liveUsersService.js";
 import { getQueueSnapshot } from "../services/queueService.js";
 import { getReaderConfig, getReaderVoiceOptions, invalidateGoogleTtsResources, updateReaderConfig } from "../services/readerConfigService.js";
@@ -144,6 +144,16 @@ router.get("/overlay-config", asyncHandler(async (_req, res) => {
 
 router.get("/overlay-public", asyncHandler(async (_req, res) => {
   res.json(getInstallationPublicInfo(getOverlayRelayStatus()));
+}));
+
+router.post("/overlay-public/regenerate", asyncHandler(async (_req, res) => {
+  const result = await regenerateInstallationRecord();
+  restartOverlayRelay();
+
+  res.json({
+    publicOverlay: getInstallationPublicInfo(getOverlayRelayStatus()),
+    revocation: result.revocation
+  });
 }));
 
 router.put("/overlay-config", asyncHandler(async (req, res) => {

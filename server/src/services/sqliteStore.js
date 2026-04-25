@@ -198,6 +198,11 @@ const getAppInstallationStmt = db.prepare(`
   WHERE key = ?
 `);
 
+const deleteAppInstallationStmt = db.prepare(`
+  DELETE FROM app_installation
+  WHERE key = ?
+`);
+
 const upsertQueueStateStmt = db.prepare(`
   INSERT INTO queue_state (key, paused, createdAt, updatedAt)
   VALUES (@key, @paused, @createdAt, @updatedAt)
@@ -396,6 +401,10 @@ export function upsertAppInstallationRow(payload) {
   });
 
   return getAppInstallationRow(payload.key);
+}
+
+export function deleteAppInstallationRow(key = "main") {
+  return deleteAppInstallationStmt.run(key);
 }
 
 export function listMutedUsers() {

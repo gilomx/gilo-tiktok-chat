@@ -2,7 +2,7 @@ import WebSocket from "ws";
 import { env } from "../config/env.js";
 import { getInstallationPublicInfo, getInstallationRelayCredentials } from "./appInstallationService.js";
 import { getOverlaySnapshot } from "./overlaySnapshotService.js";
-import { onAppEvent } from "./socketHub.js";
+import { emitUiEvent, onAppEvent } from "./socketHub.js";
 
 const RECONNECT_DELAY_MS = 5000;
 
@@ -15,8 +15,51 @@ let relayStatus = {
   lastConnectedAt: null,
   lastDisconnectedAt: null,
   lastError: "",
-  lastEventSentAt: null
+  lastEventSentAt: null,
+  lastEventType: ""
 };
+
+function broadcastRelayStatus() {
+  emitUiEvent("overlay:relay-status", getInstallationPublicInfo(relayStatus));
+}
+
+function clearReconnectTimer() {
+  if (!reconnectTimer) {
+    return;
+  }
+
+  clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+}
+
+function teardownRelaySocket() {
+  clearReconnectTimer();
+
+  if (!relaySocket) {
+    relayStatus = {
+      ...relayStatus,
+      connected: false
+    };
+    broadcastRelayStatus();
+    return;
+  }
+
+  try {
+    relaySocket.removeAllListeners();
+    relaySocket.close();
+    relaySocket.terminate();
+  } catch {
+    // Ignorar errores de cierre manual.
+  }
+
+  relaySocket = null;
+  relayStatus = {
+    ...relayStatus,
+    connected: false,
+    lastDisconnectedAt: new Date().toISOString()
+  };
+  broadcastRelayStatus();
+}
 
 function safeJsonSend(payload) {
   if (!relaySocket || relaySocket.readyState !== WebSocket.OPEN) {
@@ -27,8 +70,16 @@ function safeJsonSend(payload) {
   relayStatus = {
     ...relayStatus,
     lastEventSentAt: new Date().toISOString(),
+    lastEventType: String(payload?.type || ""),
     lastError: ""
   };
+
+  console.info("[Overlay relay] enviado", {
+    type: payload?.type || "unknown",
+    overlaySlug: payload?.payload?.overlaySlug || "",
+    emittedAt: relayStatus.lastEventSentAt
+  });
+  broadcastRelayStatus();
   return true;
 }
 
@@ -101,10 +152,16 @@ export function getOverlayRelayStatus() {
   };
 }
 
+export function restartOverlayRelay() {
+  teardownRelaySocket();
+  connectOverlayRelay();
+}
+
 export function connectOverlayRelay() {
   bindRelayEvents();
 
   if (!env.overlayRelayUrl) {
+    broadcastRelayStatus();
     return;
   }
 
@@ -125,6 +182,7 @@ export function connectOverlayRelay() {
       lastConnectedAt: new Date().toISOString(),
       lastError: ""
     };
+    broadcastRelayStatus();
 
     await sendRegistration();
     await sendSnapshot("connected");
@@ -158,6 +216,7 @@ export function connectOverlayRelay() {
       connected: false,
       lastDisconnectedAt: new Date().toISOString()
     };
+    broadcastRelayStatus();
     console.warn("Relay overlay desconectado. Reintentando en 5s...");
     scheduleReconnect();
   });
@@ -168,6 +227,7 @@ export function connectOverlayRelay() {
       connected: false,
       lastError: error.message || "No se pudo conectar al relay overlay."
     };
+    broadcastRelayStatus();
     console.error("Error en relay overlay", error.message);
   });
 }

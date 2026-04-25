@@ -8,6 +8,19 @@ const __dirname = path.dirname(__filename);
 const serverDir = path.resolve(__dirname, "..", "..");
 const rootDir = path.resolve(serverDir, "..");
 
+function deriveOverlayRevocationUrl(registrationUrl) {
+  const candidate = String(registrationUrl || "").trim();
+  if (!candidate) {
+    return "";
+  }
+
+  if (candidate.endsWith("/register")) {
+    return candidate.replace(/\/register$/, "/revoke");
+  }
+
+  return "";
+}
+
 const candidatePaths = [
   path.resolve(process.cwd(), ".env"),
   path.resolve(process.cwd(), "..", ".env"),
@@ -28,6 +41,7 @@ export const env = {
   clientUrl: process.env.CLIENT_URL || "http://localhost:5173",
   publicOverlayBaseUrl: process.env.PUBLIC_OVERLAY_BASE_URL || "",
   overlayRegistrationUrl: process.env.OVERLAY_REGISTRATION_URL || "",
+  overlayRevocationUrl: process.env.OVERLAY_REVOCATION_URL || deriveOverlayRevocationUrl(process.env.OVERLAY_REGISTRATION_URL || ""),
   overlayRelayUrl: process.env.OVERLAY_RELAY_URL || "",
   tiktokWsUrl: process.env.TIKTOK_WS_URL || "ws://localhost:21213/",
   uploadDir: process.env.UPLOAD_DIR || "server/uploads",

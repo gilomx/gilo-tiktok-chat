@@ -44,7 +44,9 @@ Variables principales en [C:/Users/mgtgi/dev/gilo-tiktok-chat/.env.example](C:/U
 - `PORT`: puerto del backend
 - `CLIENT_URL`: URL del frontend en desarrollo
 - `PUBLIC_OVERLAY_BASE_URL`: base publica donde vive tu pagina Next.js, por ejemplo `https://gilo.mx`
+- En tu caso: `https://overlay.gilo.mx`
 - `OVERLAY_REGISTRATION_URL`: endpoint HTTP que crea una identidad unica y la devuelve al cliente en el primer arranque
+- `OVERLAY_REVOCATION_URL`: endpoint HTTP opcional para invalidar una identidad anterior cuando se genera una nueva URL
 - `OVERLAY_RELAY_URL`: WebSocket del relay que recibira el estado del overlay, por ejemplo `wss://gilo.mx/api/overlay-relay`
 - `SQLITE_PATH`: ruta de la base SQLite
 - `TIKTOK_WS_URL`: WebSocket local de eventos
@@ -91,15 +93,24 @@ Se mantiene solo en memoria del backend:
 
 El proyecto ya puede generar una identidad estable por instalacion y preparar una URL del tipo:
 
-- `https://tu-dominio.com/overlay/<overlaySlug>`
+- `https://overlay.gilo.mx/<overlaySlug>`
 
 La app local:
 
 - pide la identidad a `OVERLAY_REGISTRATION_URL` solo si todavia no existe en SQLite
+- puede invalidar la identidad anterior con `OVERLAY_REVOCATION_URL` al pedir una nueva URL
 - guarda `overlaySlug` y `relaySecret` en SQLite una sola vez
 - expone esa metadata en `/api/dashboard/summary` y `/api/dashboard/overlay-public`
 - puede abrir un WebSocket saliente hacia `OVERLAY_RELAY_URL`
 - envia `overlay.register`, `overlay.snapshot` y `overlay.event`
+
+Respuesta esperada del endpoint de revocacion:
+
+```json
+{
+  "ok": true
+}
+```
 
 Respuesta esperada del endpoint de registro:
 
@@ -116,7 +127,8 @@ Tu servidor Next.js o tu backend del dominio necesita:
 - generar `overlaySlug` y `relaySecret` unicos del lado servidor
 - aceptar la conexion del cliente local usando `overlaySlug` + `relaySecret`
 - guardar el ultimo snapshot por `overlaySlug`
-- retransmitir eventos al overlay web en `gilo.mx/overlay/[slug]`
+- retransmitir eventos al overlay web en `overlay.gilo.mx/[slug]`
+- invalidar una identidad anterior cuando el cliente pida una nueva URL
 
 Con eso TikTok Live Studio solo carga la URL publica y el cliente local sigue siendo quien escucha TikTok/TTS/moderacion.
 

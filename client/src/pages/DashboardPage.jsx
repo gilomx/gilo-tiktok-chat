@@ -298,10 +298,13 @@ export default function DashboardPage() {
       preferredUrl: "/overlay",
       publicBaseUrlConfigured: false,
       registrationConfigured: false,
+      revocationConfigured: false,
       relayConfigured: false,
       relayConnected: false,
       relayLastError: "",
-      relayLastConnectedAt: null
+      relayLastConnectedAt: null,
+      relayLastEventSentAt: null,
+      relayLastEventType: ""
     },
     overlayConfig: {
       bubbleBaseColor: "#8c00ff",
@@ -376,6 +379,7 @@ export default function DashboardPage() {
   const [overlayFixedBubbleWidth, setOverlayFixedBubbleWidth] = useState(false);
   const [overlayAlignment, setOverlayAlignment] = useState("right");
   const [overlayUrlCopied, setOverlayUrlCopied] = useState(false);
+  const [isGeneratingOverlayUrl, setIsGeneratingOverlayUrl] = useState(false);
   const [isLiveUsersLocked, setIsLiveUsersLocked] = useState(false);
   const [forbiddenPage, setForbiddenPage] = useState(1);
   const [replacementPage, setReplacementPage] = useState(1);
@@ -458,6 +462,28 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    if (!summary.publicOverlay?.overlaySlug) {
+      return;
+    }
+
+    console.info("[Overlay relay status]", {
+      overlaySlug: summary.publicOverlay.overlaySlug,
+      publicUrl: summary.publicOverlay.publicUrl,
+      relayConnected: summary.publicOverlay.relayConnected,
+      relayLastEventType: summary.publicOverlay.relayLastEventType,
+      relayLastEventSentAt: summary.publicOverlay.relayLastEventSentAt,
+      relayLastError: summary.publicOverlay.relayLastError
+    });
+  }, [
+    summary.publicOverlay?.overlaySlug,
+    summary.publicOverlay?.publicUrl,
+    summary.publicOverlay?.relayConnected,
+    summary.publicOverlay?.relayLastEventType,
+    summary.publicOverlay?.relayLastEventSentAt,
+    summary.publicOverlay?.relayLastError
+  ]);
+
+  useEffect(() => {
     liveUsersSearchRef.current = search.liveUsers;
   }, [search.liveUsers]);
 
@@ -527,10 +553,14 @@ export default function DashboardPage() {
     const handleReaderConfig = (readerConfig) => {
       setSummary((current) => ({ ...current, readerConfig }));
     };
+    const handleRelayStatus = (publicOverlay) => {
+      setSummary((current) => ({ ...current, publicOverlay }));
+    };
 
     socket.on("queue:updated", handleQueue);
     socket.on("message:new", handleMessage);
     socket.on("overlay:config-updated", handleOverlayConfig);
+    socket.on("overlay:relay-status", handleRelayStatus);
     socket.on("live:stats-updated", handleLiveStats);
     socket.on("live:users-updated", handleLiveUsers);
     socket.on("live:muted-users-updated", handleMutedUsers);
@@ -540,6 +570,7 @@ export default function DashboardPage() {
       socket.off("queue:updated", handleQueue);
       socket.off("message:new", handleMessage);
       socket.off("overlay:config-updated", handleOverlayConfig);
+      socket.off("overlay:relay-status", handleRelayStatus);
       socket.off("live:stats-updated", handleLiveStats);
       socket.off("live:users-updated", handleLiveUsers);
       socket.off("live:muted-users-updated", handleMutedUsers);
@@ -863,6 +894,36 @@ export default function DashboardPage() {
       window.setTimeout(() => setOverlayUrlCopied(false), 1800);
     } catch (error) {
       console.error(error);
+    }
+  };
+
+  const generateNewOverlayUrl = async () => {
+    const confirmed = window.confirm(
+      "Esto generara una nueva URL publica del overlay. La URL anterior dejara de usarse en esta instalacion. Continuar?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsGeneratingOverlayUrl(true);
+
+    try {
+      const response = await http("/api/dashboard/overlay-public/regenerate", {
+        method: "POST"
+      });
+
+      console.info("[Overlay URL] nueva identidad generada", response);
+      setSummary((current) => ({
+        ...current,
+        publicOverlay: response.publicOverlay || current.publicOverlay
+      }));
+      setOverlayUrlCopied(false);
+      await refreshSummary();
+    } catch (error) {
+      console.error("[Overlay URL] no se pudo generar una nueva identidad", error);
+    } finally {
+      setIsGeneratingOverlayUrl(false);
     }
   };
 
@@ -1558,13 +1619,23 @@ export default function DashboardPage() {
           <section className="panel">
             <div className="panel-header">
               <h2>Personalizar overlay</h2>
-              <button
-                type="button"
-                className="button-secondary button-compact"
-                onClick={copyOverlayUrl}
-              >
-                {overlayUrlCopied ? "URL copiada" : "Copiar URL"}
-              </button>
+              <div className="button-inline-row">
+                <button
+                  type="button"
+                  className="button-secondary button-compact"
+                  onClick={copyOverlayUrl}
+                >
+                  {overlayUrlCopied ? "URL copiada" : "Copiar URL"}
+                </button>
+                <button
+                  type="button"
+                  className="button-secondary button-compact"
+                  onClick={generateNewOverlayUrl}
+                  disabled={isGeneratingOverlayUrl}
+                >
+                  {isGeneratingOverlayUrl ? "Generando..." : "Nueva URL"}
+                </button>
+              </div>
             </div>
             <div className="overlay-settings">
               <p className="helper-copy overlay-helper-copy">
@@ -1584,9 +1655,19 @@ export default function DashboardPage() {
                   ? (summary.publicOverlay?.relayConnected ? "conectado" : "configurado pero sin conectar")
                   : "sin configurar"}
               </p>
+              {summary.publicOverlay?.relayLastEventType && (
+                <p className="helper-copy overlay-helper-copy">
+                  Ultimo envio: <code>{summary.publicOverlay.relayLastEventType}</code>{summary.publicOverlay?.relayLastEventSentAt ? ` a las ${new Date(summary.publicOverlay.relayLastEventSentAt).toLocaleTimeString()}` : ""}
+                </p>
+              )}
               {!summary.publicOverlay?.registrationConfigured && (
                 <p className="helper-copy overlay-helper-copy">
                   Define <code>OVERLAY_REGISTRATION_URL</code> para que nuevas instalaciones reciban su identidad desde tu servidor.
+                </p>
+              )}
+              {!summary.publicOverlay?.revocationConfigured && (
+                <p className="helper-copy overlay-helper-copy">
+                  No hay endpoint de revocacion configurado. La nueva URL igual se generara, pero la identidad anterior podria seguir existiendo en el servidor remoto.
                 </p>
               )}
               {!summary.publicOverlay?.publicBaseUrlConfigured && (

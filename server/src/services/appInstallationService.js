@@ -1,6 +1,10 @@
 import crypto from "crypto";
 import { env } from "../config/env.js";
-import { getAppInstallationRow, upsertAppInstallationRow } from "./sqliteStore.js";
+import {
+  deleteAppInstallationRow,
+  getAppInstallationRow,
+  upsertAppInstallationRow
+} from "./sqliteStore.js";
 
 const INSTALLATION_KEY = "main";
 
@@ -65,7 +69,59 @@ async function requestRemoteInstallationRecord() {
   }
 
   const payload = await response.json();
+  console.info("[Overlay install] identidad recibida del servidor", {
+    overlaySlug: payload?.overlaySlug || "",
+    installationId: payload?.installationId || ""
+  });
   return validateRemotePayload(payload);
+}
+
+async function revokeRemoteInstallationRecord(installation) {
+  if (!installation || installation.identitySource !== "remote") {
+    return {
+      attempted: false,
+      revoked: false,
+      message: "No habia identidad remota previa para revocar."
+    };
+  }
+
+  if (!env.overlayRevocationUrl) {
+    return {
+      attempted: false,
+      revoked: false,
+      message: "No hay endpoint de revocacion configurado."
+    };
+  }
+
+  const response = await fetch(env.overlayRevocationUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      client: "gilo-tiktok-chat",
+      installationId: installation.installationId,
+      overlaySlug: installation.overlaySlug,
+      relaySecret: installation.relaySecret,
+      revokedAt: new Date().toISOString()
+    })
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `No se pudo revocar la identidad remota (${response.status}).`);
+  }
+
+  console.info("[Overlay install] identidad remota revocada", {
+    overlaySlug: installation.overlaySlug,
+    installationId: installation.installationId
+  });
+
+  return {
+    attempted: true,
+    revoked: true,
+    message: "La identidad remota anterior fue revocada."
+  };
 }
 
 function createLocalInstallationRecord() {
@@ -96,6 +152,36 @@ export async function ensureInstallationRecord() {
   return upsertAppInstallationRow(createLocalInstallationRecord());
 }
 
+export async function regenerateInstallationRecord() {
+  const previous = getAppInstallationRow(INSTALLATION_KEY);
+  let revocation = {
+    attempted: false,
+    revoked: false,
+    message: "No habia identidad anterior."
+  };
+
+  if (previous) {
+    try {
+      revocation = await revokeRemoteInstallationRecord(previous);
+    } catch (error) {
+      console.warn("[Overlay install] no se pudo revocar la identidad remota anterior.", error.message);
+      revocation = {
+        attempted: true,
+        revoked: false,
+        message: error.message
+      };
+    }
+  }
+
+  deleteAppInstallationRow(INSTALLATION_KEY);
+  const installation = await ensureInstallationRecord();
+
+  return {
+    installation,
+    revocation
+  };
+}
+
 export function getInstallationRecord() {
   const installation = getAppInstallationRow(INSTALLATION_KEY);
 
@@ -114,7 +200,7 @@ export function getInstallationPublicInfo(relayStatus = {}) {
   const publicBaseUrl = normalizeBaseUrl(env.publicOverlayBaseUrl);
   const localPath = `/overlay/${installation.overlaySlug}`;
   const publicUrl = publicBaseUrl
-    ? `${publicBaseUrl}/overlay/${installation.overlaySlug}`
+    ? `${publicBaseUrl}/${installation.overlaySlug}`
     : "";
 
   return {
@@ -126,10 +212,13 @@ export function getInstallationPublicInfo(relayStatus = {}) {
     preferredUrl: publicUrl || localPath,
     publicBaseUrlConfigured: Boolean(publicBaseUrl),
     registrationConfigured: Boolean(env.overlayRegistrationUrl),
+    revocationConfigured: Boolean(env.overlayRevocationUrl),
     relayConfigured: Boolean(env.overlayRelayUrl),
     relayConnected: Boolean(relayStatus.connected),
     relayLastError: relayStatus.lastError || "",
-    relayLastConnectedAt: relayStatus.lastConnectedAt || null
+    relayLastConnectedAt: relayStatus.lastConnectedAt || null,
+    relayLastEventSentAt: relayStatus.lastEventSentAt || null,
+    relayLastEventType: relayStatus.lastEventType || ""
   };
 }
 
