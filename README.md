@@ -9,6 +9,7 @@ Aplicacion full-stack para leer, moderar y mostrar en overlay un chat de TikTok 
 - Persistencia: SQLite
 - TTS: Google Cloud Text-to-Speech
 - Fuente de eventos: `ws://localhost:21213/` (TikFinity u otra fuente compatible)
+- Relay opcional para overlay publico: WebSocket saliente hacia tu dominio
 
 ## Que hace
 
@@ -18,6 +19,7 @@ Aplicacion full-stack para leer, moderar y mostrar en overlay un chat de TikTok 
 - Permite stickers personalizados y emotes del evento
 - Muestra overlay para OBS con personalizacion visual en tiempo real
 - Guarda configuraciones, stickers, palabras, reemplazos y usuarios silenciados en SQLite
+- Genera un `overlaySlug` estable por instalacion para poder apuntar a una URL publica fija
 
 ## Arranque rapido
 
@@ -41,6 +43,9 @@ Variables principales en [C:/Users/mgtgi/dev/gilo-tiktok-chat/.env.example](C:/U
 
 - `PORT`: puerto del backend
 - `CLIENT_URL`: URL del frontend en desarrollo
+- `PUBLIC_OVERLAY_BASE_URL`: base publica donde vive tu pagina Next.js, por ejemplo `https://gilo.mx`
+- `OVERLAY_REGISTRATION_URL`: endpoint HTTP que crea una identidad unica y la devuelve al cliente en el primer arranque
+- `OVERLAY_RELAY_URL`: WebSocket del relay que recibira el estado del overlay, por ejemplo `wss://gilo.mx/api/overlay-relay`
 - `SQLITE_PATH`: ruta de la base SQLite
 - `TIKTOK_WS_URL`: WebSocket local de eventos
 - `UPLOAD_DIR`: carpeta para stickers subidos
@@ -67,6 +72,7 @@ Se guarda en SQLite:
 - usuarios silenciados
 - configuracion del lector
 - configuracion del overlay
+- identidad de instalacion del overlay (`installationId`, `overlaySlug`, `relaySecret`)
 - estado pausado de la cola
 
 Se mantiene solo en memoria del backend:
@@ -80,6 +86,39 @@ Se mantiene solo en memoria del backend:
 - Dashboard: `http://localhost:5173/`
 - Overlay OBS: `http://localhost:5173/overlay`
 - API: `http://localhost:3001/api`
+
+## Overlay publico
+
+El proyecto ya puede generar una identidad estable por instalacion y preparar una URL del tipo:
+
+- `https://tu-dominio.com/overlay/<overlaySlug>`
+
+La app local:
+
+- pide la identidad a `OVERLAY_REGISTRATION_URL` solo si todavia no existe en SQLite
+- guarda `overlaySlug` y `relaySecret` en SQLite una sola vez
+- expone esa metadata en `/api/dashboard/summary` y `/api/dashboard/overlay-public`
+- puede abrir un WebSocket saliente hacia `OVERLAY_RELAY_URL`
+- envia `overlay.register`, `overlay.snapshot` y `overlay.event`
+
+Respuesta esperada del endpoint de registro:
+
+```json
+{
+  "installationId": "uuid-o-id-global",
+  "overlaySlug": "slug-unico-estable",
+  "relaySecret": "secreto-largo-y-unico"
+}
+```
+
+Tu servidor Next.js o tu backend del dominio necesita:
+
+- generar `overlaySlug` y `relaySecret` unicos del lado servidor
+- aceptar la conexion del cliente local usando `overlaySlug` + `relaySecret`
+- guardar el ultimo snapshot por `overlaySlug`
+- retransmitir eventos al overlay web en `gilo.mx/overlay/[slug]`
+
+Con eso TikTok Live Studio solo carga la URL publica y el cliente local sigue siendo quien escucha TikTok/TTS/moderacion.
 
 ## Notas
 

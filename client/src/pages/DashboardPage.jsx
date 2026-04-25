@@ -289,6 +289,20 @@ export default function DashboardPage() {
     liveStats: { viewerCount: 0, updatedAt: null },
     liveUsers: [],
     mutedUsers: [],
+    publicOverlay: {
+      installationId: "",
+      overlaySlug: "",
+      identitySource: "local",
+      localPath: "/overlay",
+      publicUrl: "",
+      preferredUrl: "/overlay",
+      publicBaseUrlConfigured: false,
+      registrationConfigured: false,
+      relayConfigured: false,
+      relayConnected: false,
+      relayLastError: "",
+      relayLastConnectedAt: null
+    },
     overlayConfig: {
       bubbleBaseColor: "#8c00ff",
       modBadgeColor: "#ff6e8a",
@@ -841,7 +855,8 @@ export default function DashboardPage() {
   };
 
   const copyOverlayUrl = async () => {
-    const overlayUrl = `${window.location.origin}/overlay`;
+    const overlayUrl = summary.publicOverlay?.publicUrl
+      || `${window.location.origin}${summary.publicOverlay?.localPath || "/overlay"}`;
     try {
       await navigator.clipboard.writeText(overlayUrl);
       setOverlayUrlCopied(true);
@@ -1555,6 +1570,35 @@ export default function DashboardPage() {
               <p className="helper-copy overlay-helper-copy">
                 Tamano recomendado del overlay: 500x300.
               </p>
+              <p className="helper-copy overlay-helper-copy">
+                URL del overlay: <code>{summary.publicOverlay?.publicUrl || `${window.location.origin}${summary.publicOverlay?.localPath || "/overlay"}`}</code>
+              </p>
+              <p className="helper-copy overlay-helper-copy">
+                Instalacion: <code>{summary.publicOverlay?.overlaySlug || "pendiente"}</code>
+              </p>
+              <p className="helper-copy overlay-helper-copy">
+                Identidad: {summary.publicOverlay?.identitySource === "remote" ? "generada por servidor" : "local de respaldo"}
+              </p>
+              <p className="helper-copy overlay-helper-copy">
+                Relay: {summary.publicOverlay?.relayConfigured
+                  ? (summary.publicOverlay?.relayConnected ? "conectado" : "configurado pero sin conectar")
+                  : "sin configurar"}
+              </p>
+              {!summary.publicOverlay?.registrationConfigured && (
+                <p className="helper-copy overlay-helper-copy">
+                  Define <code>OVERLAY_REGISTRATION_URL</code> para que nuevas instalaciones reciban su identidad desde tu servidor.
+                </p>
+              )}
+              {!summary.publicOverlay?.publicBaseUrlConfigured && (
+                <p className="helper-copy overlay-helper-copy">
+                  Define <code>PUBLIC_OVERLAY_BASE_URL</code> y <code>OVERLAY_RELAY_URL</code> para que esta URL apunte a tu dominio en lugar de localhost.
+                </p>
+              )}
+              {summary.publicOverlay?.relayLastError && (
+                <p className="helper-copy overlay-helper-copy">
+                  Error del relay: {summary.publicOverlay.relayLastError}
+                </p>
+              )}
               <div className="overlay-color-grid">
                 <label className="color-setting color-setting-compact">
                   <span>Background</span>

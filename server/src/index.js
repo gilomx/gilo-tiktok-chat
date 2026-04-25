@@ -10,10 +10,13 @@ import moderationRoutes from "./routes/moderationRoutes.js";
 import queueRoutes from "./routes/queueRoutes.js";
 import stickerRoutes from "./routes/stickerRoutes.js";
 import ttsRoutes from "./routes/ttsRoutes.js";
+import { ensureInstallationRecord, getInstallationRecord } from "./services/appInstallationService.js";
+import { connectOverlayRelay } from "./services/overlayRelayService.js";
 import { registerSocket } from "./services/socketHub.js";
 import { connectTikTokSource } from "./services/tiktokSourceService.js";
 
 await connectDb();
+await ensureInstallationRecord();
 
 const app = express();
 const server = http.createServer(app);
@@ -61,5 +64,8 @@ io.on("connection", () => {
 
 server.listen(env.port, () => {
   console.info(`API escuchando en http://localhost:${env.port}`);
+  const installation = getInstallationRecord();
+  console.info(`Overlay instalado con slug estable: ${installation.overlaySlug} (${installation.identitySource})`);
+  connectOverlayRelay();
   connectTikTokSource();
 });

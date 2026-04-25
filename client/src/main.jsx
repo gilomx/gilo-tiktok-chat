@@ -10,6 +10,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <Routes>
       <Route path="/" element={<DashboardPage />} />
       <Route path="/overlay" element={<OverlayPage />} />
+      <Route path="/overlay/:overlayId" element={<OverlayPage />} />
     </Routes>
   </BrowserRouter>
 );

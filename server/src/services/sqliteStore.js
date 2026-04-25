@@ -54,6 +54,11 @@ function parseQueueStateRow(row) {
   };
 }
 
+function parseInstallationRow(row) {
+  if (!row) return null;
+  return row;
+}
+
 function parseMutedUserRow(row) {
   if (!row) return null;
   return {
@@ -187,11 +192,28 @@ const getQueueStateStmt = db.prepare(`
   WHERE key = ?
 `);
 
+const getAppInstallationStmt = db.prepare(`
+  SELECT key, installationId, overlaySlug, relaySecret, identitySource, createdAt, updatedAt
+  FROM app_installation
+  WHERE key = ?
+`);
+
 const upsertQueueStateStmt = db.prepare(`
   INSERT INTO queue_state (key, paused, createdAt, updatedAt)
   VALUES (@key, @paused, @createdAt, @updatedAt)
   ON CONFLICT(key) DO UPDATE SET
     paused = excluded.paused,
+    updatedAt = excluded.updatedAt
+`);
+
+const upsertAppInstallationStmt = db.prepare(`
+  INSERT INTO app_installation (key, installationId, overlaySlug, relaySecret, identitySource, createdAt, updatedAt)
+  VALUES (@key, @installationId, @overlaySlug, @relaySecret, @identitySource, @createdAt, @updatedAt)
+  ON CONFLICT(key) DO UPDATE SET
+    installationId = excluded.installationId,
+    overlaySlug = excluded.overlaySlug,
+    relaySecret = excluded.relaySecret,
+    identitySource = excluded.identitySource,
     updatedAt = excluded.updatedAt
 `);
 
@@ -356,6 +378,24 @@ export function upsertQueueStateRow(payload) {
     updatedAt: timestamp
   });
   return getQueueStateRow(payload.key);
+}
+
+export function getAppInstallationRow(key = "main") {
+  return parseInstallationRow(getAppInstallationStmt.get(key));
+}
+
+export function upsertAppInstallationRow(payload) {
+  const existing = getAppInstallationRow(payload.key);
+  const timestamp = nowIso();
+
+  upsertAppInstallationStmt.run({
+    ...payload,
+    identitySource: payload.identitySource || existing?.identitySource || "local",
+    createdAt: existing?.createdAt || payload.createdAt || timestamp,
+    updatedAt: timestamp
+  });
+
+  return getAppInstallationRow(payload.key);
 }
 
 export function listMutedUsers() {

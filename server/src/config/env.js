@@ -26,6 +26,9 @@ export const env = {
   sqlitePath: path.resolve(rootDir, process.env.SQLITE_PATH || "server/data/app.db"),
   port: Number(process.env.PORT || 3001),
   clientUrl: process.env.CLIENT_URL || "http://localhost:5173",
+  publicOverlayBaseUrl: process.env.PUBLIC_OVERLAY_BASE_URL || "",
+  overlayRegistrationUrl: process.env.OVERLAY_REGISTRATION_URL || "",
+  overlayRelayUrl: process.env.OVERLAY_RELAY_URL || "",
   tiktokWsUrl: process.env.TIKTOK_WS_URL || "ws://localhost:21213/",
   uploadDir: process.env.UPLOAD_DIR || "server/uploads",
   googleCredentialsPath: (() => {

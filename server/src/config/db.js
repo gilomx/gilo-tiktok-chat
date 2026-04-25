@@ -124,6 +124,16 @@ function runSchema() {
       updatedAt TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS app_installation (
+      key TEXT PRIMARY KEY,
+      installationId TEXT NOT NULL UNIQUE,
+      overlaySlug TEXT NOT NULL UNIQUE,
+      relaySecret TEXT NOT NULL,
+      identitySource TEXT NOT NULL DEFAULT 'local',
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS queue_state (
       key TEXT PRIMARY KEY,
       paused INTEGER NOT NULL DEFAULT 0,
@@ -146,6 +156,7 @@ function runSchema() {
   ensureColumn("overlay_config", "perspectiveRotateX", "REAL NOT NULL DEFAULT 0");
   ensureColumn("overlay_config", "perspectiveRotateY", "REAL NOT NULL DEFAULT 0");
   ensureColumn("overlay_config", "perspectiveEyeLevel", "REAL NOT NULL DEFAULT 50");
+  ensureColumn("app_installation", "identitySource", "TEXT NOT NULL DEFAULT 'local'");
 }
 
 runSchema();

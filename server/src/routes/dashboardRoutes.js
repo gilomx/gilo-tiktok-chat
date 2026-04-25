@@ -1,8 +1,10 @@
 import express from "express";
 import multer from "multer";
+import { getInstallationPublicInfo } from "../services/appInstallationService.js";
 import { getOverlayConfig, updateOverlayConfig } from "../services/overlayConfigService.js";
 import { getLiveStats } from "../services/liveStatsService.js";
 import { getRecentMessages } from "../services/messageStoreService.js";
+import { getOverlayRelayStatus } from "../services/overlayRelayService.js";
 import { getRecentLiveUsers, muteLiveUser, searchLiveUsers, searchMutedUsers, unmuteLiveUser } from "../services/liveUsersService.js";
 import { getQueueSnapshot } from "../services/queueService.js";
 import { getReaderConfig, getReaderVoiceOptions, invalidateGoogleTtsResources, updateReaderConfig } from "../services/readerConfigService.js";
@@ -63,6 +65,7 @@ function rankMatchWithPagination(items, field, query, page = 1, pageSize = 20) {
 }
 
 router.get("/summary", asyncHandler(async (_req, res) => {
+  const relayStatus = getOverlayRelayStatus();
   const [queue, recentMessages, forbiddenWords, replacementRules, stickerItems, overlayConfig, liveUsers, mutedUsers, readerConfig, readerVoiceOptions] = await Promise.all([
     getQueueSnapshot(),
     Promise.resolve(getRecentMessages(10)),
@@ -83,6 +86,7 @@ router.get("/summary", asyncHandler(async (_req, res) => {
     replacements: rankMatchWithPagination(replacementRules, "from", "", 1, 20),
     stickers: rankMatchWithPagination(stickerItems, "keyword", "", 1, 20),
     overlayConfig,
+    publicOverlay: getInstallationPublicInfo(relayStatus),
     readerConfig,
     readerVoiceOptions,
     liveStats: getLiveStats(),
@@ -136,6 +140,10 @@ router.get("/messages/recent", asyncHandler(async (_req, res) => {
 
 router.get("/overlay-config", asyncHandler(async (_req, res) => {
   res.json(await getOverlayConfig());
+}));
+
+router.get("/overlay-public", asyncHandler(async (_req, res) => {
+  res.json(getInstallationPublicInfo(getOverlayRelayStatus()));
 }));
 
 router.put("/overlay-config", asyncHandler(async (req, res) => {
