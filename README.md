@@ -43,12 +43,11 @@ Variables principales en [C:/Users/mgtgi/dev/gilo-tiktok-chat/.env.example](C:/U
 
 - `PORT`: puerto del backend
 - `CLIENT_URL`: URL del frontend en desarrollo
-- `SQLITE_PATH`: ruta de la base SQLite
 - `TIKTOK_WS_URL`: WebSocket local de eventos
-- `UPLOAD_DIR`: carpeta para stickers subidos
 - `GOOGLE_APPLICATION_CREDENTIALS`: opcional; si esta vacio, el JSON de Google puede cargarse desde el dashboard
 
 Las URLs publicas del overlay (`overlay.gilo.mx`) ya vienen definidas en el codigo para no pedirle esa configuracion al usuario final.
+La carpeta de datos del usuario tambien se resuelve automaticamente y no necesita configuracion manual.
 
 ## Google TTS
 
@@ -79,6 +78,63 @@ Se mantiene solo en memoria del backend:
 - cola actual
 - mensajes recientes del overlay
 - usuarios recientes en live
+
+## Datos del usuario
+
+La app mantiene una carpeta estable para datos persistentes en:
+
+- `server/data/app.db`
+- `server/data/uploads/`
+- `server/data/google-service-account.json`
+- `server/data/backups/`
+
+Cuando el esquema cambia, la app:
+
+- detecta la version de la base
+- crea un backup automatico antes de migrar
+- aplica migraciones numeradas
+
+Si encuentra uploads heredados en `server/uploads`, intenta copiarlos automaticamente a `server/data/uploads` para no perder stickers al actualizar.
+
+## Como agregar una migracion nueva
+
+Si en una actualizacion necesitas guardar una tabla, columna o indice nuevo en SQLite:
+
+1. Abre [C:/Users/mgtgi/dev/gilo-tiktok-chat/server/src/config/db.js](C:/Users/mgtgi/dev/gilo-tiktok-chat/server/src/config/db.js)
+2. Sube `LATEST_SCHEMA_VERSION` en `+1`
+3. Agrega una nueva entrada al arreglo `migrations`
+4. Escribe ahi el SQL o la logica necesaria dentro de `up()`
+5. Arranca la app y verifica que:
+   - se cree un backup en `server/data/backups/`
+   - se aplique la migracion nueva
+   - la app siga levantando normal
+
+Ejemplo:
+
+```js
+{
+  version: 6,
+  name: "add soundboard presets",
+  up() {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS soundboard_presets (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL
+      );
+    `);
+  }
+}
+```
+
+Reglas recomendadas:
+
+- no edites migraciones viejas que ya pudieron correr en instalaciones reales
+- agrega migraciones nuevas al final del arreglo
+- usa defaults seguros para columnas nuevas
+- si solo agregas una columna, puedes apoyarte en `ensureColumn(...)`
+- si el cambio es delicado, prueba primero con una copia de `app.db`
 
 ## Rutas
 
@@ -133,5 +189,6 @@ Con eso TikTok Live Studio solo carga la URL publica y el cliente local sigue si
 
 - El dashboard ejecuta el bucle de reproduccion TTS y reclama el siguiente mensaje de la cola.
 - El overlay esta pensado para usarse en OBS y tiene tamano recomendado de `500x300`.
-- Los stickers subidos viven en `server/uploads/stickers`.
+- Los stickers nuevos viven en `server/data/uploads/stickers`.
+- La app intenta rescatar uploads heredados desde `server/uploads/stickers` si existen.
 - El asset de preview del overlay vive en `client/src/assets/loco.gif`.

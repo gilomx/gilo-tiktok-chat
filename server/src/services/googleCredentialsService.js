@@ -1,8 +1,7 @@
 import fs from "fs";
-import path from "path";
 import { env } from "../config/env.js";
 
-const storedCredentialsPath = path.resolve(env.rootDir, "server", "data", "google-service-account.json");
+const storedCredentialsPath = env.managedGoogleCredentialsPath;
 
 function isValidServiceAccountJson(value) {
   return Boolean(
